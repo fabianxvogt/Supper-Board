@@ -25,7 +25,7 @@ I'm not a developer. I built all of this in an afternoon by talking to Claude: t
 - **Requests:** "more fish," "nothing heavy the week of the 20th." The next plan takes these into account.
 
 **On a schedule, without anyone asking:**
-- **Tuesday:** Claude reads every rating, note, request, freezer item, and staple, then drafts the next two weeks with original recipes and a grocery list. It posts the draft to the board as "ready to review."
+- **Tuesday:** Claude checks the last order's emails for anything out of stock or substituted and fixes the board to match. Then it reads every rating, note, request, freezer item, and staple, drafts the next two weeks with original recipes and a grocery list, and posts the draft to the board as "ready to review."
 - **Before Thursday:** we look it over, mark anything we don't want as "Replace," and tap **Approve**.
 - **Thursday evening:** Claude swaps out the marked meals and merges the plan's groceries, our quick-adds, and Low staples into one list. It saves the list on the board and as a Google Doc.
 - **Thursday 7 PM:** our shopping agent (Meta's Muse) picks up the doc, builds the Walmart pickup order, and asks us to approve it.
@@ -61,7 +61,7 @@ There are three moving parts:
 | When | Who | What happens | Board status |
 |---|---|---|---|
 | Daily | Us | Cook, rate, add notes and groceries, push back if needed | `active` |
-| Tue ~6:50 AM | Claude | Drafts the next 2 weeks: recipes, thaw schedule, grocery list | `drafted` |
+| Tue ~6:50 AM | Claude | Checks the last order for missing items, then drafts the next 2 weeks: recipes, thaw schedule, grocery list | `drafted` |
 | Tue–Thu | Us | Review, mark meals to replace, **Approve** | `approved` |
 | Thu ~5:50 PM | Claude | Swaps marked meals, builds the final list, saves a Google Doc | `list_ready` |
 | Thu 7:00 PM | Shopping agent | Builds the Walmart pickup order and asks us to approve | |
