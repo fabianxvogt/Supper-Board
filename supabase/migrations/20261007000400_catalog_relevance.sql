@@ -29,8 +29,10 @@ begin
     or coalesce(p_source_mode,'') not in ('all','bls','household')
   then raise exception using message='VALIDATION',errcode='P0001'; end if;
   v_normalized:=lower(regexp_replace(v_query,'[[:space:]]+',' ','g'));
-  v_tokens:=pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,coalesce(v_query,'')));
-  v_lead:=pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,split_part(coalesce(v_normalized,''),' ',1)));
+  -- German Snowball leaves -eln plurals intact. Normalize that grammatical
+  -- suffix in both query and labels before stemming, never specific food names.
+  v_tokens:=pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,regexp_replace(coalesce(v_query,''),'eln\M','el','gi')));
+  v_lead:=pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,regexp_replace(split_part(coalesce(v_normalized,''),' ',1),'eln\M','el','gi')));
   if p_category_id is not null then
     with recursive category_tree(id) as (
       select p_category_id
@@ -57,8 +59,8 @@ begin
       from (
         select names.label,names.priority,
           lower(regexp_replace(btrim(names.label),'[[:space:]]+',' ','g')) as normalized,
-          pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,names.label)) as tokens,
-          pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,split_part(btrim(names.label),' ',1))) as leading
+          pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,regexp_replace(names.label,'eln\M','el','gi'))) as tokens,
+          pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.german'::regconfig,regexp_replace(split_part(btrim(names.label),' ',1),'eln\M','el','gi'))) as leading
         from (
           select v.name_de as label,0 as priority
           union all select v.name_en,1 where v.name_en is not null

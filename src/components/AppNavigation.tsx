@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { MouseEvent, ReactNode } from 'react';
 
 const destinations = [
   { href: '/today', label: 'Heute', symbol: '◷' },
@@ -38,5 +39,18 @@ export function AppNavigation() {
         {destinations.map((item) => <DestinationLink key={item.href} {...item} mobile pathname={pathname} />)}
       </nav>
     </>
+  );
+}
+
+function closeSettingsAfterNavigation(event: MouseEvent<HTMLDetailsElement>): void {
+  if (event.target instanceof Element && event.target.closest('a')) event.currentTarget.open = false;
+}
+
+export function AppSettingsMenu({ children }: { children: ReactNode }) {
+  return (
+    <details className="context-switcher" name="workspace-header-menu" onClick={closeSettingsAfterNavigation}>
+      <summary className="button button-small button-quiet">Einstellungen</summary>
+      <nav className="context-panel stack" aria-label="Profil, Haushalt und Datenschutz">{children}</nav>
+    </details>
   );
 }

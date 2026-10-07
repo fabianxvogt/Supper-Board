@@ -20,6 +20,8 @@ const variables = {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
   DATABASE_URL: status.DB_URL,
+  AUTH_TRUSTED_ORIGIN: 'http://127.0.0.1:3000',
+  AUTH_ALLOW_SIGNUP: 'true',
 };
 writeFileSync(destination, Object.entries(variables).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join('\n') + '\n', { mode: 0o600 });
 console.log('Wrote ignored .env.local for isolated local Supabase; credentials were not printed.');

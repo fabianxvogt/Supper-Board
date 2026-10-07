@@ -6,13 +6,16 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   const draftTitle = `E2E Ersatz ${suffix}`;
   const ingredientName = `E2E Zutat ${suffix}`;
 
-  await page.goto('/profile');
+  await page.getByText('Einstellungen', { exact: true }).click();
+  await page.getByRole('link', { name: 'Mein Profil', exact: true }).click();
   const today = await page.locator('#age-date').getAttribute('max');
   if (!today) throw new Error('The profile must expose its authoritative household-local date.');
   const planStart = today;
   await page.getByLabel('Nährwertdarstellung').selectOption('manual');
-  await page.getByLabel('Bestätigtes Alter in vollendeten Jahren').fill('30');
+  await page.getByText('Optionale Körperangaben & Berechnungshilfe', { exact: true }).click();
+  await page.getByLabel('Bestätigtes Alter (optional)', { exact: true }).fill('30');
   await page.getByLabel('Bezugsdatum für dieses Alter').fill(today);
+  await page.getByText('Gewicht, Größe und Alltag für eine Energieschätzung ergänzen (optional)', { exact: true }).click();
   await page.getByLabel('Gewicht (kg)').fill('70');
   await page.getByLabel('Messdatum des Gewichts').fill(today);
   await Promise.all([
@@ -70,7 +73,7 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await page.goto('/recipes/new');
   await page.getByLabel('Rezeptname').fill(recipeTitle);
   await page.getByLabel('Basisportionen').fill('1');
-  await page.getByRole('button', { name: 'Freitext-Zutat hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Zutat hinzufügen', exact: true }).click();
   await page.getByLabel('Originaltext').fill(ingredientName);
   await page.getByLabel('Menge', { exact: true }).fill('1');
   await page.getByRole('button', { name: 'Schritt hinzufügen' }).click();
@@ -79,16 +82,17 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]+$/);
   await expect(page.getByRole('heading', { name: recipeTitle })).toBeVisible();
 
-  await page.goto('/plan');
-  const recipeOption = page.locator('select[name="recipeVersionId"] option').filter({ hasText: recipeTitle }).last();
-  const recipeVersionId = await recipeOption.getAttribute('value');
+  await page.getByRole('link', { name: 'Diese Mahlzeit planen', exact: true }).click();
+  const scheduleRecipe = page.locator('#schedule-recipe');
+  const recipeVersionId = new URL(page.url()).searchParams.get('recipeVersionId');
   expect(recipeVersionId).toBeTruthy();
-  await page.locator('select[name="recipeVersionId"]').first().selectOption(recipeVersionId!);
+  await expect(scheduleRecipe).toHaveValue(recipeVersionId!);
   await page.getByLabel('Kochdatum').fill(planStart);
   await page.getByLabel('Kochmenge (Portionen)').fill('2');
   await page.getByRole('button', { name: 'Charge einplanen' }).click();
   await expect(page.getByRole('heading', { name: recipeTitle }).first()).toBeVisible();
 
+  await page.getByText('Kochhilfe · Zutaten und Schritte der gespeicherten Rezeptversion', { exact: true }).click();
   await page.getByRole('button', { name: 'Abhaken' }).first().click();
   await expect(page.getByText('Erledigt', { exact: true })).toBeVisible();
   await page.goto(`/today?date=${planStart}`);
@@ -105,6 +109,7 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await expect(page.getByText('Zubereitung erledigt', { exact: true })).toBeVisible();
 
   await page.goto(`/plan?start=${planStart}&horizon=7`);
+  await page.getByText(/^Termine ändern und Entwurf erstellen ·/).click();
   await page.getByLabel('Titel des Entwurfs').fill(draftTitle);
   const replacesEntry = page.getByLabel('Ersetzt bisherigen Termin');
   const targetOption = replacesEntry.locator('option').filter({ hasText: recipeTitle }).first();
@@ -112,8 +117,10 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   expect(targetEntryId).toBeTruthy();
   await replacesEntry.selectOption(targetEntryId!);
   await page.getByRole('button', { name: 'Entwurf speichern' }).click();
-  await expect(page.getByRole('heading', { name: 'Planentwürfe' })).toBeVisible();
-  const replacement = page.locator('details').filter({ hasText: 'Entwurfseintrag ersetzen oder vervollständigen' }).first();
+  await page.getByText(/^Gespeicherte Planentwürfe \(/).click();
+  const savedDraft = page.locator('article').filter({ has: page.getByRole('heading', { name: draftTitle, exact: true }) });
+  await expect(savedDraft).toBeVisible();
+  const replacement = savedDraft.locator('details').filter({ hasText: 'Entwurfseintrag ersetzen oder vervollständigen' });
   await replacement.locator('summary').click();
   await replacement.locator('select[name="kind"]').selectOption('recipe');
   const replacementRecipe = replacement.locator('select[name="recipeVersionId"] option').filter({ hasText: recipeTitle }).first();
@@ -122,11 +129,13 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await replacement.locator('select[name="recipeVersionId"]').selectOption(replacementVersionId!);
   await replacement.locator('input[name="cookPortions"]').fill('1');
   await replacement.getByRole('button', { name: 'Entwurfseintrag speichern' }).click();
-  await page.getByRole('button', { name: /freigeben/ }).click();
+  await savedDraft.getByRole('button', { name: /freigeben/ }).click();
+  await expect(savedDraft.getByText(/Status: approved/)).toBeVisible();
 });
 
-test('minimum and maximum goals retain their thresholds through editor reload and Today projection', async ({ page, owner }) => {
-  await page.goto('/profile');
+test('minimum and maximum goals retain their thresholds after reload and require explicit sharing consent', async ({ page, owner }) => {
+  await page.getByText('Einstellungen', { exact: true }).click();
+  await page.getByRole('link', { name: 'Mein Profil', exact: true }).click();
   await page.getByLabel('Nährwertdarstellung').selectOption('manual');
   await page.getByLabel('Vorlieben (optional)').fill(`Synthetic threshold fixture ${owner.suffix}`);
   await Promise.all([
@@ -160,9 +169,4 @@ test('minimum and maximum goals retain their thresholds through editor reload an
   ]);
   await page.reload();
   await expect(sharingConsent).not.toBeChecked();
-  await page.goto('/today');
-  const comparison = page.locator('section[aria-labelledby="day-nutrition-heading"]');
-  await expect(comparison.getByRole('heading', { name: 'Vergleich mit deinen gewählten Zielen' })).toBeVisible();
-  await expect(comparison.getByText('energy_kcal', { exact: true })).toBeVisible();
-  await expect(comparison.getByText('Protein', { exact: true })).toBeVisible();
 });

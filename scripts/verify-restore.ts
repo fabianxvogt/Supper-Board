@@ -19,17 +19,17 @@ const source = new pg.Client({ connectionString: url });
 await source.connect();
 
 async function inventory(client: pg.Client) {
-  const { rows: tables } = await client.query<{ schemaname: string; tablename: string }>("select schemaname,tablename from pg_tables where schemaname in ('public','auth') order by schemaname,tablename");
+  const { rows: tables } = await client.query<{ schemaname: string; tablename: string }>("select schemaname,tablename from pg_tables where schemaname in ('public','auth','app_private') order by schemaname,tablename");
   const counts: Record<string, { count: string; digest: string }> = {};
   for (const { schemaname, tablename } of tables) {
     const identifier = `"${schemaname.replaceAll('"', '""')}"."${tablename.replaceAll('"', '""')}"`;
     const { rows } = await client.query<{ count: string; digest: string }>(`select count(*)::text as count, md5(coalesce(string_agg(row_hash, '' order by row_hash), '')) as digest from (select md5(to_jsonb(t)::text) as row_hash from ${identifier} t) fingerprints`);
     counts[`${schemaname}.${tablename}`] = rows[0];
   }
-  const { rows: constraints } = await client.query("select c.relname,t.conname,pg_get_constraintdef(t.oid) as definition from pg_constraint t join pg_class c on c.oid=t.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' order by c.relname,t.conname");
-  const { rows: policies } = await client.query("select schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check from pg_policies where schemaname='public' order by tablename,policyname");
-  const { rows: rowSecurity } = await client.query("select schemaname,tablename,rowsecurity from pg_tables where schemaname in ('public','auth') order by schemaname,tablename");
-  const { rows: tablePrivileges } = await client.query("select n.nspname as schema,c.relname,c.relowner::regrole::text as owner,c.relrowsecurity,c.relforcerowsecurity,array(select permission::text from unnest(coalesce(c.relacl,acldefault(case when c.relkind='S' then 's'::\"char\" else 'r'::\"char\" end,c.relowner))) permission order by permission::text) as privileges from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','auth') and c.relkind in ('r','p','S') order by n.nspname,c.relname");
+  const { rows: constraints } = await client.query("select n.nspname as schema,c.relname,t.conname,pg_get_constraintdef(t.oid) as definition from pg_constraint t join pg_class c on c.oid=t.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','app_private') order by n.nspname,c.relname,t.conname");
+  const { rows: policies } = await client.query("select schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check from pg_policies where schemaname in ('public','auth','app_private') order by schemaname,tablename,policyname");
+  const { rows: rowSecurity } = await client.query("select schemaname,tablename,rowsecurity from pg_tables where schemaname in ('public','auth','app_private') order by schemaname,tablename");
+  const { rows: tablePrivileges } = await client.query("select n.nspname as schema,c.relname,c.relowner::regrole::text as owner,c.relrowsecurity,c.relforcerowsecurity,array(select permission::text from unnest(coalesce(c.relacl,acldefault(case when c.relkind='S' then 's'::\"char\" else 'r'::\"char\" end,c.relowner))) permission order by permission::text) as privileges from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','auth','app_private') and c.relkind in ('r','p','S') order by n.nspname,c.relname");
   const { rows: functions } = await client.query("select n.nspname as schema,p.proname,pg_get_function_identity_arguments(p.oid) as arguments,p.proowner::regrole::text as owner,array(select permission::text from unnest(coalesce(p.proacl,acldefault('f',p.proowner))) permission order by permission::text) as privileges,pg_get_functiondef(p.oid) as definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','auth','app_private') and p.prokind='f' order by n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)");
   return { counts, constraints, policies, rowSecurity, tablePrivileges, functions };
 }
@@ -73,7 +73,7 @@ try {
       throw new Error(`Restored application/Auth ${section} differs from source.`);
     }
   }
-  console.log(JSON.stringify({ result: 'passed', checked: 'public/auth row counts/content fingerprints, constraints, RLS flags/policies, owners/grants and public/auth/app_private commands', counts: after.counts, archive }, null, 2));
+  console.log(JSON.stringify({ result: 'passed', checked: 'public/auth/app_private row counts/content fingerprints, constraints, RLS flags/policies, owners/grants and commands', counts: after.counts, archive }, null, 2));
 } finally {
   await source.query('rollback');
   await restored?.end();

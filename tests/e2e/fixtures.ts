@@ -10,7 +10,9 @@ interface SyntheticOwner {
 
 export const test = base.extend<{ owner: SyntheticOwner }>({
   owner: async ({ page }, runFixture) => {
-    base.skip(process.env.E2E_SYNTHETIC !== '1', 'Set E2E_SYNTHETIC=1 for isolated local application workflows.');
+    if (process.env.E2E_SYNTHETIC !== '1') {
+      throw new Error('Set E2E_SYNTHETIC=1 to execute isolated local workflows; browser verification must not pass by skipping them.');
+    }
     const apiUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

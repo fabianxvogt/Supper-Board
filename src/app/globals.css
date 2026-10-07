@@ -37,6 +37,7 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 a { color: var(--primary-strong); text-underline-offset: .18em; }
 a:hover { color: var(--info); }
 button { color: inherit; }
+summary { cursor: pointer; }
 :focus-visible { outline: 3px solid #a45717; outline-offset: 3px; }
 ::selection { background: #c9decf; }
 
@@ -88,6 +89,8 @@ main { min-height: 65vh; }
 .card { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: clamp(1rem, 2vw, 1.4rem); box-shadow: var(--shadow); }
 .card-flat { box-shadow: none; }
 .card + .card { margin-top: 1rem; }
+.stack > .card + .card, .grid > .card + .card { margin-top: 0; }
+details.card > summary { min-height: 2.75rem; align-content: center; line-height: 1.45; font-weight: 600; }
 .section { margin-top: 1.7rem; }
 .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: .8rem; }
 .section-heading h2 { margin: 0; }

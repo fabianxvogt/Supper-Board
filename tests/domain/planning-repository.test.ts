@@ -61,7 +61,7 @@ describe('planning repository windows', () => {
       meal_entries: [meal('visible', 'old', '2026-10-07', 'batch'), meal('later', 'old', '2026-10-20', 'batch'), { ...meal('archived', 'old', '2026-10-20', 'batch'), archived_at: '2026-10-01T00:00:00Z' }],
       meal_allocations: [{ id: 'a', household_id: 'household', entry_id: 'visible', person_id: 'person', portions: '1', revision: 1 }, { id: 'b', household_id: 'household', entry_id: 'later', person_id: 'person', portions: '2', revision: 1 }, { id: 'c', household_id: 'household', entry_id: 'archived', person_id: 'person', portions: '9', revision: 1 }],
       planned_batches: [{ id: 'batch', household_id: 'household', plan_id: 'old', recipe_version_id: 'recipe-version', cook_date: '2026-10-01', cook_portions: '4', revision: 1 }],
-      recipe_versions: [{ id: 'recipe-version', household_id: 'household', recipe_id: 'recipe', title: 'Synthetic batch', base_servings: '4', version_number: 1, calculation_version: 'fixture' }],
+      recipe_versions: [{ id: 'recipe-version', household_id: 'household', recipe_id: 'recipe', title: 'Synthetic batch', base_servings: '4', version_number: 1, calculation_version: 'fixture', steps: [] }],
       recipes: [{ id: 'recipe', household_id: 'household', revision: 1 }],
     });
     const snapshot = await repository.getPlanSnapshot({ householdId: 'household', from: '2026-10-07', to: '2026-10-13' });

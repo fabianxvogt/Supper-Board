@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { trustedBrowserOrigin } from '@/lib/supabase/auth-origin';
+import { isSignupEnabled } from '@/lib/supabase/signup-policy';
 import { Buffer } from 'node:buffer';
 import { AUTH_PASSWORD_MAX_UTF8_BYTES, AUTH_PASSWORD_MIN_UTF8_BYTES } from '@/lib/supabase/password-policy';
 
@@ -37,12 +38,11 @@ export async function signInAction(formData: FormData): Promise<void> {
 }
 
 export async function signUpAction(formData: FormData): Promise<void> {
+  if (!isSignupEnabled()) redirect('/register?error=signup-closed');
   const input = credentials(formData);
   if (!input) redirect('/register?error=invalid-input');
-  const requestHeaders = await headers();
-  const origin = requestHeaders.get('origin') ?? requestHeaders.get('x-forwarded-host')?.split(',')[0]?.trim();
-  const protocol = requestHeaders.get('x-forwarded-proto')?.split(',')[0]?.trim() ?? 'http';
-  const baseUrl = origin?.startsWith('http') ? origin : origin ? `${protocol}://${origin}` : 'http://localhost:3000';
+  const baseUrl = trustedBrowserOrigin(await headers());
+  if (!baseUrl) redirect('/register?error=sign-up-failed');
   const next = safeNext(formData.get('next'), '/onboarding/household');
   const callback = new URL('/auth/callback', baseUrl);
   callback.searchParams.set('next', next);

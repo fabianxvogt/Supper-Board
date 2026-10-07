@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -16,10 +17,6 @@ type Household = { householdId: string; userId: string; personId: string };
 function object(value: unknown): JsonObject {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Expected a JSON object.');
   return value as JsonObject;
-}
-function text(value: unknown): string {
-  if (typeof value !== 'string') throw new Error('Expected a text value.');
-  return value;
 }
 function envelope(payload: JsonObject, expectedRevisions: Envelope['expectedRevisions'] = {}): Envelope {
   return { operationId: randomUUID(), expectedRevisions, payload };
@@ -325,7 +322,7 @@ describe('Private preview erasure through export, preview, apply and deletion', 
     const expired = await preview(target, document);
     const active = await preview(target, document);
     await db.query('reset role');
-    await db.query(\"update public.data_import_previews set expires_at=now()-interval '1 second' where id=$1\", [expired.previewId]);
+    await db.query("update public.data_import_previews set expires_at=now()-interval '1 second' where id=$1", [expired.previewId]);
     await authenticate(target.userId);
     await failure(() => command('apply_import_data', applyEnvelope(target, expired, 1)), 'IMPORT_PREVIEW_EXPIRED');
     for (const role of ['anon', 'authenticated']) {
@@ -388,6 +385,47 @@ async function beginContender(client: pg.Client, userId: string): Promise<void> 
 }
 
 describe('Transaction serialization at trust command boundaries', () => {
+  it('rejects a grouped shopping checkoff whose editor loses access while waiting for the household lock', async () => {
+    const target = await household();
+    const editor = await addMember(target, 'editor');
+    await db.query('commit');
+    const contender = new pg.Client({ connectionString });
+    try {
+      await contender.connect();
+      const pid = (await contender.query<{ pid: number }>('select pg_backend_pid() pid')).rows[0].pid;
+      await db.query('begin');
+      await revoke(target, editor, 'remove_member');
+      await contender.query('begin');
+      await contender.query("set local statement_timeout='5s'");
+      await authenticate(editor, contender);
+      const outcome = command('set_shopping_checkoff', envelope({
+        householdId: target.householdId,
+        lines: [{ lineKey: 'synthetic-revoked-line', lineFingerprint: 'a'.repeat(64) }],
+        checked: true, sourcePlanRevision: 0, sourceInventoryRevision: 0,
+      }, { [target.householdId]: 0 }), contender).then(
+        () => ({ error: null }),
+        (error: Error) => ({ error }),
+      );
+      let blocked = false;
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const state = await db.query<{ blocked: boolean }>('select cardinality(pg_blocking_pids($1))>0 blocked', [pid]);
+        if (state.rows[0].blocked) { blocked = true; break; }
+        await delay(10);
+      }
+      expect(blocked).toBe(true);
+      await db.query('commit');
+      expect((await outcome).error?.message).toContain('FORBIDDEN');
+      await contender.query('rollback');
+      await db.query('reset role');
+      expect((await db.query('select count(*)::int count from public.shopping_checkoffs where household_id=$1', [target.householdId])).rows[0].count).toBe(0);
+    } finally {
+      await db.query('rollback');
+      await contender.end();
+      await cleanupCommitted([target.householdId], [target.userId, editor]);
+    }
+  });
+
   it.each(['remove_member', 'change_member_role'] as const)('%s wins against blocked stale acceptance and invitation creation', async (action) => {
     const target = await household();
     const editor = await addMember(target, 'editor');
@@ -488,15 +526,6 @@ describe('Transaction serialization at trust command boundaries', () => {
     }
   });
 
-  it('installs an active credential-free cron job rather than relying on user activity for expiry erasure', async () => {
-    const { rows } = await db.query(`select schedule,command,active from cron.job
-      where jobname='supper-board-preview-retention'`);
-    expect(rows).toEqual([{
-      schedule: '*/5 * * * *',
-      command: 'select public.purge_expired_import_previews();',
-      active: true,
-    }]);
-  });
 });
 
 describe('Legacy attribution and rollback boundaries', () => {

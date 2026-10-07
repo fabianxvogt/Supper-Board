@@ -1,6 +1,10 @@
 import Link from 'next/link';
+import { isSignupEnabled } from '@/lib/supabase/signup-policy';
+
+export const dynamic = 'force-dynamic';
 
 export default function HomePage() {
+  const signupEnabled = isSignupEnabled();
   return (
     <>
       <header className="app-header">
@@ -11,7 +15,7 @@ export default function HomePage() {
           </Link>
           <span className="header-spacer" />
           <Link className="button button-quiet" href="/login">Anmelden</Link>
-          <Link className="button button-primary" href="/onboarding">Konto erstellen</Link>
+          {signupEnabled ? <Link className="button button-primary" href="/onboarding">Konto erstellen</Link> : <span className="status">Privater Pilot</span>}
         </div>
       </header>
       <main>
@@ -21,36 +25,36 @@ export default function HomePage() {
               <p className="eyebrow">Dein ruhiger Küchenkompass</p>
               <h1 id="welcome-title">Gut geplant.<br />Gemeinsam gekocht.</h1>
               <p className="muted" style={{ maxWidth: '37rem', fontSize: '1.12rem' }}>
-                Rezepte, Mahlzeiten, Vorrat und Einkauf an einem Ort – mit klaren Portionsangaben und Nährwerten, die ihre Datenlücken ehrlich zeigen.
+                Entscheide, was diese Woche auf den Tisch kommt. Plane passende Portionen, nutze deinen Vorrat und nimm nur das Fehlende auf die Einkaufsliste.
               </p>
               <div className="button-row" style={{ marginTop: '1.3rem' }}>
-                <Link className="button button-primary" href="/discover/foods">Lebensmittel entdecken</Link>
-                <Link className="button" href="/onboarding">Plan anlegen</Link>
+                <Link className="button button-primary" href={signupEnabled ? '/onboarding' : '/login'}>{signupEnabled ? 'Meine Woche planen' : 'Zum eigenen Plan'}</Link>
+                <Link className="button" href="/discover/foods">Lebensmittel nachschlagen</Link>
               </div>
-              <p className="help" style={{ marginTop: '1rem' }}>Entdecken ist ohne Anmeldung möglich. Für dauerhafte Planung richtest du später einen Haushalt ein – Körperdaten sind optional.</p>
+              <p className="help" style={{ marginTop: '1rem' }}>{signupEnabled ? 'Starte mit einem Rezept und einem gemeinsamen Plan.' : 'Privater Pilot für bestehende Konten. Die öffentliche Registrierung ist noch geschlossen.'} Körperdaten und persönliche Nährwertziele sind optional. Den Lebensmittelkatalog kannst du ohne Anmeldung ansehen.</p>
             </div>
             <div className="card card-flat" style={{ background: 'var(--surface-soft)' }}>
-              <p className="eyebrow">Einfach im Alltag</p>
+              <p className="eyebrow">Vom Lieblingsrezept zum Abendessen</p>
               <div className="stack">
                 <article>
-                  <h2 style={{ marginBottom: '.25rem' }}>Ein Plan für den Tisch</h2>
-                  <p className="muted">Mehrere Mahlzeiten, Kochchargen und persönliche Portionen – ohne die Haushaltsmenge mit deinem Profil zu verwechseln.</p>
+                  <h2 style={{ marginBottom: '.25rem' }}>Rezepte, die ihr gerne kocht</h2>
+                  <p className="muted">Halte Zutaten und Zubereitung einmal fest und plane das Rezept immer wieder ein. Lebensmittel kannst du gezielt zuordnen; Ungeklärtes bleibt sichtbar.</p>
                 </article>
                 <article>
-                  <h2 style={{ marginBottom: '.25rem' }}>Eine Einkaufsliste, die mitdenkt</h2>
-                  <p className="muted">Offene Zutaten, bestätigte Vorräte und freie Extras bleiben nachvollziehbar. Preise werden nicht erfunden.</p>
+                  <h2 style={{ marginBottom: '.25rem' }}>Eine Woche, die zu euch passt</h2>
+                  <p className="muted">Verteile Mahlzeiten und Portionen auf die Personen im Haushalt. Plane mehrere Portionen auf einmal und reserviere die übrigen für einen anderen Tag.</p>
                 </article>
                 <article>
-                  <h2 style={{ marginBottom: '.25rem' }}>Deine Daten, deine Entscheidung</h2>
-                  <p className="muted">Manuelle Ziele funktionieren ohne Körperprofil. Private Angaben bleiben vom gemeinsamen Haushalt getrennt.</p>
+                  <h2 style={{ marginBottom: '.25rem' }}>Weniger überlegen beim Einkaufen</h2>
+                  <p className="muted">Sieh, welche Zutaten noch fehlen, ergänze Alltagsartikel und speichere die Liste für unterwegs. Bestätigter Vorrat wird berücksichtigt; unbekannte Mengen bleiben offen.</p>
                 </article>
               </div>
             </div>
           </div>
           <div className="section grid grid-3" aria-label="Hauptbereiche">
-            <Link className="card" href="/today" style={{ color: 'inherit', textDecoration: 'none' }}><span className="eyebrow">1 · Heute</span><h2>Was steht an?</h2><p className="muted">Alle Mahlzeiten und Küchenaufgaben des Tages.</p></Link>
-            <Link className="card" href="/plan" style={{ color: 'inherit', textDecoration: 'none' }}><span className="eyebrow">2 · Plan</span><h2>Was kommt danach?</h2><p className="muted">7 oder 14 Tage, mit Personen und Resten.</p></Link>
-            <Link className="card" href="/discover" style={{ color: 'inherit', textDecoration: 'none' }}><span className="eyebrow">3 · Entdecken</span><h2>Was möchtest du kochen?</h2><p className="muted">Lebensmittelkatalog und eigene Rezeptbibliothek.</p></Link>
+            <Link className="card" href="/today" style={{ color: 'inherit', textDecoration: 'none' }}><span className="eyebrow">1 · Heute</span><h2>Was kochen wir?</h2><p className="muted">Mahlzeiten, Portionen und die nächsten Küchenaufgaben.</p></Link>
+            <Link className="card" href="/plan" style={{ color: 'inherit', textDecoration: 'none' }}><span className="eyebrow">2 · Plan</span><h2>Was passt diese Woche?</h2><p className="muted">Deine Mahlzeiten für 7 oder 14 Tage, gemeinsam geplant.</p></Link>
+            <Link className="card" href="/shopping" style={{ color: 'inherit', textDecoration: 'none' }}><span className="eyebrow">3 · Einkauf</span><h2>Was fehlt noch?</h2><p className="muted">Eine Liste aus deinem Plan, Vorrat und eigenen Ergänzungen.</p></Link>
           </div>
         </section>
       </main>

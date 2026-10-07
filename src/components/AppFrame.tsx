@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { AppNavigation } from '@/components/AppNavigation';
+import { AppNavigation, AppSettingsMenu } from '@/components/AppNavigation';
 
 export interface AppHouseholdChoice {
   id: string;
@@ -45,7 +45,7 @@ export function AppFrame({
             <span className="brand-wordmark">Supper Board<small>Küche & Planung</small></span>
           </Link>
           <span className="header-spacer" />
-          <details className="context-switcher">
+          <details className="context-switcher" name="workspace-header-menu">
             <summary className="button button-small" aria-label="Haushalt und Person wechseln">{householdName} · {personName ?? 'Person wählen'}</summary>
             <form action={switchContextAction} className="context-panel">
               <label className="field" htmlFor="active-household">Haushalt
@@ -62,17 +62,14 @@ export function AppFrame({
               <button className="button button-primary button-small" type="submit">Wechseln</button>
             </form>
           </details>
-          <Link className="button button-small button-quiet" href="/profile">Profil</Link>
-          <details className="context-switcher">
-            <summary className="button button-small button-quiet">Haushalt & Datenschutz</summary>
-            <nav className="context-panel stack" aria-label="Haushalts- und Datenschutzeinstellungen">
-              <Link className="button button-small" href="/household">Haushalt, Personen & Einladungen</Link>
-              <Link className="button button-small" href="/data">Daten & Privatsphäre · Export und Löschen</Link>
-            </nav>
-          </details>
-          <form action={signOutAction}>
-            <button className="button button-small button-quiet" type="submit" aria-label="Abmelden">Abmelden</button>
-          </form>
+          <AppSettingsMenu>
+            <Link className="button button-small" href="/profile">Mein Profil</Link>
+            <Link className="button button-small" href="/household">Haushalt, Personen & Einladungen</Link>
+            <Link className="button button-small" href="/data">Daten & Privatsphäre · Export und Löschen</Link>
+            <form action={signOutAction}>
+              <button className="button button-small button-quiet" type="submit">Abmelden</button>
+            </form>
+          </AppSettingsMenu>
         </div>
         <AppNavigation />
       </header>

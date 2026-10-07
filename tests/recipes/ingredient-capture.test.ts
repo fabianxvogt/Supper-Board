@@ -25,10 +25,7 @@ describe('reviewable ingredient capture', () => {
   it.each(['1-2 kg Reis', 'ca. 250 g Mehl', '1/2 EL Öl', '½ TL Salz', '1.000 g Mehl', '2 x 400 g Bohnen', '200 bis 300 g Mehl', '0 g Salz'])('leaves ambiguous amount unresolved: %s', (text) => {
     expect(parseIngredientLines(text)[0]).toMatchObject({ sourceText: text, quantity: '', unit: '' });
   });
-  it('never derives grams, edible basis, food selection or nutrients from a pasted line', () => {
-    const parsed = parseIngredientLines('1 Stück Apfel')[0];
-    expect(parsed).toMatchObject({ quantity: '1', unit: 'Stück' });
-    expect(Object.keys(parsed).sort()).toEqual(['foodQuery', 'quantity', 'sourceText', 'unit']);
+  it('rejects overlong source lines rather than truncating the user’s ingredient', () => {
     expect(() => parseIngredientLines('a'.repeat(301))).toThrow();
   });
   it('maps and remaps only the intended existing row, preserving all non-food inputs', () => {

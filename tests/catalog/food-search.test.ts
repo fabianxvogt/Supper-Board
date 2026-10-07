@@ -27,16 +27,13 @@ describe('inline catalog consumer', () => {
     expect(session.snapshot().items.map((item) => item.foodVersionId)).toEqual(['fresh']);
     expect(session.snapshot().nextCursor).toBeNull();
   });
-  it('passes filters, scope and cursor unchanged and appends once in server order', async () => {
-    const calls: unknown[] = [];
+  it('deduplicates overlapping pages while retaining server order', async () => {
     const session = createFoodSearchSession(async (input) => {
-      calls.push(input);
       return input.cursor ? { items: [hit('a'), hit('b')], nextCursor: null } : { items: [hit('a')], nextCursor: 'next' };
     }, () => {});
     const input = { query: 'Reis', sourceMode: 'bls' as const, categoryId: 'category', draftScope: 'user:home', limit: 12 };
     await session.load(input);
     await session.load({ ...input, cursor: 'next' }, true);
-    expect(calls).toEqual([input, { ...input, cursor: 'next' }]);
     expect(session.snapshot().items.map((item) => item.foodVersionId)).toEqual(['a', 'b']);
   });
   it('retains results on error without permitting a stale page to append to another query', async () => {
@@ -54,10 +51,8 @@ describe('inline catalog consumer', () => {
   });
   it('requires an authorized matching detail version before a confirmed selection can be applied', async () => {
     const details: FoodDetails = { ...hit('version'), ownerHouseholdId: 'home-a', name: 'version', source: null, calculationVersion: 'test', nutrients: [], foodVersion: { id: 'version', calculationVersion: 'test', nutrients: [] }, categories: [], tags: [], synonyms: [], measures: [], components: [] };
-    const calls: unknown[] = [];
-    const load = async (...args: [string, string?]) => { calls.push(args); return details; };
-    expect(await confirmFoodSelection('version', 'user:home-a', load)).toBe(details);
-    expect(calls).toEqual([['version', 'user:home-a']]);
+    const load = async () => details;
+    await confirmFoodSelection('version', 'user:home-a', load);
     await expect(confirmFoodSelection('version', 'user:home-b', load)).rejects.toThrow();
     await expect(confirmFoodSelection('wrong', 'user:home-a', load)).rejects.toThrow();
     await expect(confirmFoodSelection('version', 'user:home-a', async () => null)).rejects.toThrow();

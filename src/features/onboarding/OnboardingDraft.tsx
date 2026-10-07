@@ -97,29 +97,31 @@ export function OnboardingDraft() {
   }
 
   return (
-    <div className="grid grid-2" style={{ alignItems: 'start' }}>
+    <div className="stack" style={{ maxWidth: '48rem' }}>
       <section className="card stack" aria-labelledby="setup-household">
-        <p className="eyebrow">Schritt 1 · Grunddaten</p>
+        <p className="eyebrow">Gemeinsam oder für dich</p>
         <h2 id="setup-household">Deine Küche</h2>
         <label className="field" htmlFor="household-name">Haushaltsname<input id="household-name" value={draft.householdName} maxLength={80} onChange={(event) => update('householdName', event.currentTarget.value)} /></label>
         <label className="field" htmlFor="person-name">Dein Anzeigename<input id="person-name" value={draft.displayName} maxLength={80} onChange={(event) => update('displayName', event.currentTarget.value)} /></label>
-        <label className="field" htmlFor="time-zone">Zeitzone<span className="field-hint">Sie bestimmt das lokale Datum und den Wochenplan.</span><input id="time-zone" value={draft.timeZone} maxLength={64} onChange={(event) => update('timeZone', event.currentTarget.value)} /></label>
-        <button className="button button-small" type="button" onClick={guessTimeZone}>Zeitzone meines Geräts übernehmen</button>
       </section>
-      <section className="card stack" aria-labelledby="setup-nutrition">
-        <p className="eyebrow">Schritt 2 · Anzeige</p>
-        <h2 id="setup-nutrition">Wie möchtest du starten?</h2>
-        <label className="inline" style={{ alignItems: 'flex-start' }}><input type="radio" name="nutrientMode" value="view" checked={draft.nutrientMode === 'view'} onChange={() => update('nutrientMode', 'view')} /><span><strong>Nur ansehen</strong><br /><span className="help">Werte ansehen, ohne Ziele oder Körperdaten.</span></span></label>
-        <label className="inline" style={{ alignItems: 'flex-start' }}><input type="radio" name="nutrientMode" value="manual" checked={draft.nutrientMode === 'manual'} onChange={() => update('nutrientMode', 'manual')} /><span><strong>Eigene Ziele setzen</strong><br /><span className="help">Manuelle Ziele bleiben unter deiner Kontrolle.</span></span></label>
-        <label className="inline" style={{ alignItems: 'flex-start' }}><input type="radio" name="nutrientMode" value="guided" checked={draft.nutrientMode === 'guided'} onChange={() => update('nutrientMode', 'guided')} /><span><strong>Berechnungshilfe später einrichten</strong><br /><span className="help">Referenz und optionale Energieschätzung kannst du später auswählen.</span></span></label>
-        <div className="alert alert-info"><strong>Körperdaten sind optional.</strong> Du kannst mit einem Rezept, einer Mahlzeit oder einem Lebensmittel beginnen, ohne sie einzutragen.</div>
-      </section>
-      <div className="card card-flat" style={{ gridColumn: '1 / -1' }}>
+      <details className="card card-flat">
+        <summary>Anzeige und Zeitzone anpassen (optional)</summary>
+        <div className="stack" style={{ marginTop: '1rem' }}>
+          <p className="help">Du startest ohne Körperdaten oder Nährwertziele. Diese Einstellungen kannst du später ändern.</p>
+          <label className="inline" style={{ alignItems: 'flex-start' }}><input type="radio" name="nutrientMode" value="view" checked={draft.nutrientMode === 'view'} onChange={() => update('nutrientMode', 'view')} /><span><strong>Nur ansehen</strong><br /><span className="help">Werte ansehen, ohne Ziele oder Körperdaten.</span></span></label>
+          <label className="inline" style={{ alignItems: 'flex-start' }}><input type="radio" name="nutrientMode" value="manual" checked={draft.nutrientMode === 'manual'} onChange={() => update('nutrientMode', 'manual')} /><span><strong>Eigene Ziele setzen</strong><br /><span className="help">Manuelle Ziele bleiben unter deiner Kontrolle.</span></span></label>
+          <label className="inline" style={{ alignItems: 'flex-start' }}><input type="radio" name="nutrientMode" value="guided" checked={draft.nutrientMode === 'guided'} onChange={() => update('nutrientMode', 'guided')} /><span><strong>Berechnungshilfe später einrichten</strong><br /><span className="help">Referenz und optionale Energieschätzung kannst du später auswählen.</span></span></label>
+          <label className="field" htmlFor="time-zone">Zeitzone<span className="field-hint">Sie bestimmt das lokale Datum und den Wochenplan.</span><input id="time-zone" value={draft.timeZone} maxLength={64} onChange={(event) => update('timeZone', event.currentTarget.value)} /></label>
+          <button className="button button-small" type="button" onClick={guessTimeZone}>Zeitzone meines Geräts übernehmen</button>
+          <div className="alert alert-info"><strong>Körperdaten sind optional.</strong> Du kannst mit einem Rezept, einer Mahlzeit oder einem Lebensmittel beginnen, ohne sie einzutragen.</div>
+        </div>
+      </details>
+      <div className="card card-flat">
         <p className="help">Dein Haushalt und Anzeigename werden als Einrichtungsentwurf nur in dieser Browsersitzung zwischengespeichert. Vorlieben und Körperdaten werden hier nicht gespeichert. Für dauerhafte Speicherung brauchst du ein Konto.</p>
         <div className="button-row">
-          <Link className="button button-primary" href="/register?next=%2Fonboarding%2Fhousehold">Entwurf behalten und Konto erstellen</Link>
+          <Link className="button button-primary" href="/register?next=%2Fonboarding%2Fhousehold">Weiter zum Konto</Link>
           <Link className="button" href="/login?next=%2Fonboarding%2Fhousehold">Ich habe schon ein Konto</Link>
-          <Link className="button button-quiet" href="/discover/foods">Erst Lebensmittel entdecken</Link>
+          <Link className="button button-quiet" href="/discover/foods">Lebensmittel ohne Konto nachschlagen</Link>
         </div>
       </div>
     </div>

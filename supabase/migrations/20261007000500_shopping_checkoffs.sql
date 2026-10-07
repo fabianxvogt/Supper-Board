@@ -29,6 +29,8 @@ begin
   select plan_revision,inventory_revision,shopping_revision into v_plan,v_inventory,v_shopping
   from public.households where id=v_household for update;
   if not found then perform app_private.fail('NOT_FOUND'); end if;
+  -- Membership can change while this command waits for the household lock.
+  perform app_private.assert_role(v_household,array['owner','editor']);
   perform app_private.assert_revision(p_command,v_household,v_shopping);
   if (p->>'sourcePlanRevision')::integer is distinct from v_plan or (p->>'sourceInventoryRevision')::integer is distinct from v_inventory then perform app_private.fail('REVISION_CONFLICT'); end if;
   for v_line in select value from jsonb_array_elements(p->'lines') loop

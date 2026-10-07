@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requestPasswordResetAction } from '@/app/actions/auth';
+import { isSignupEnabled } from '@/lib/supabase/signup-policy';
 
 export const metadata: Metadata = { title: 'Passwort vergessen' };
 
@@ -19,7 +20,8 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
       <header className="app-header"><div className="header-inner"><Link className="brand" href="/"><span className="brand-mark" aria-hidden="true">S</span><span className="brand-wordmark">Supper Board<small>Nutrition & Küche</small></span></Link><span className="header-spacer" /><Link className="button button-quiet" href="/discover/foods">Ohne Anmeldung entdecken</Link></div></header>
       <main className="page-wrap" style={{ maxWidth: '38rem' }}>
         <p className="eyebrow">Kontozugang</p><h1>Passwort vergessen?</h1>
-        <p className="muted">Gib die E-Mail-Adresse deines Kontos ein. Wir senden dir einen Link zum Festlegen eines neuen Passworts.</p>
+        <p className="muted">Fordere für die E-Mail-Adresse deines Kontos einen Link zum Festlegen eines neuen Passworts an.</p>
+        {!isSignupEnabled() && <p className="alert alert-info">Im privaten Pilotbetrieb ist die automatische E-Mail-Zustellung noch nicht für alle Adressen freigegeben. Falls keine Nachricht ankommt, wende dich an die Person, die deinen Pilotzugang eingerichtet hat.</p>}
         {query.message === 'link-sent' && <p className="alert alert-info" role="status">Wenn ein Konto zu dieser Adresse existiert, erhältst du eine E-Mail mit einem Link zum Zurücksetzen des Passworts. Prüfe auch deinen Spam-Ordner.</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <form action={requestPasswordResetAction} className="card stack">

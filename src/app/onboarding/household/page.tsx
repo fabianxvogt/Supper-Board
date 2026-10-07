@@ -14,7 +14,7 @@ export default async function CreateHouseholdPage() {
   if (households.length) redirect('/today');
   return (
     <main className="page-wrap" style={{ maxWidth: '58rem' }}>
-      <p className="eyebrow">Einrichtung · Schritt 1 von 2</p>
+      <p className="eyebrow">Deine Küche einrichten</p>
       <HouseholdSetup saveAction={createInitialHouseholdAction} operationId={crypto.randomUUID()} />
     </main>
   );

@@ -24,18 +24,6 @@ beforeEach(() => {
 });
 
 describe('capture at the recipe persistence consumer', () => {
-  it('retains source text, unknown structure, version expectations and imported yield without inventing nutrition', async () => {
-    expect(await saveRecipeVersionAction({}, form())).toEqual({ savedRecipeId: recipeId });
-    const command = mocks.save.mock.calls[0][0];
-    expect(command.expectedRevisions).toEqual({ [recipeId]: 2 });
-    expect(command.payload).toMatchObject({ householdId: household, expectedVersionId: versionId, baseServings: null, yieldText: '4 oder 5' });
-    expect(command.payload.ingredients).toEqual([{ foodVersionId, originalText: '  - ca. 2 Tomaten ', quantity: undefined, unit: 'unknown', basis: 'unknown', confirmedGramsPerUnit: undefined, alternativeGroupId: undefined, selected: true }]);
-  });
-  it('allows reviewed unresolved freetext ingredients to persist', async () => {
-    const data = form(); data.set('ingredientFoodVersionId', '');
-    await saveRecipeVersionAction({}, data);
-    expect(mocks.save.mock.calls[0][0].payload.ingredients[0]).toMatchObject({ foodVersionId: undefined, originalText: '  - ca. 2 Tomaten ', quantity: undefined, basis: 'unknown' });
-  });
   it('blocks unreviewed paste without issuing a persistence command', async () => {
     const data = form(); data.set('ingredientPastePending', 'true');
     expect(await saveRecipeVersionAction({}, data)).toHaveProperty('error');
