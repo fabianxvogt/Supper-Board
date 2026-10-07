@@ -30,8 +30,9 @@ export default async function EditRecipePage({ params, searchParams }: { params:
   const foodVersions: Record<string, FoodVersion> = Object.fromEntries(recipe.ingredients.flatMap((ingredient) => ingredient.foodVersion ? [[ingredient.foodVersion.id, ingredient.foodVersion] as const] : []));
   const parsedFoodVersionId = query.foodVersionId && z.uuid().safeParse(query.foodVersionId).success ? query.foodVersionId : undefined;
   const addedFood = parsedFoodVersionId ? await context.repository.getFoodDetails(parsedFoodVersionId).catch(() => null) : null;
+  if (parsedFoodVersionId && (!addedFood || (addedFood.ownerHouseholdId && addedFood.ownerHouseholdId !== context.household.id))) notFound();
   if (addedFood && !ingredients.some((ingredient) => ingredient.foodVersionId === addedFood.foodVersionId)) {
-    ingredients.push({ id: crypto.randomUUID(), originalText: addedFood.nameDe, foodVersionId: addedFood.foodVersionId, foodName: addedFood.nameDe, quantity: '', unit: 'g', basis: 'unknown', gramsPerUnit: '', alternativeGroupId: '', selectedAlternative: true });
+    ingredients.push({ id: crypto.randomUUID(), originalText: addedFood.nameDe, foodVersionId: addedFood.foodVersionId, foodName: addedFood.nameDe, quantity: '', unit: '', basis: 'unknown', gramsPerUnit: '', alternativeGroupId: '', selectedAlternative: true });
     foodVersions[addedFood.foodVersionId] = addedFood.foodVersion;
   }
   const initial: RecipeEditorValues = {

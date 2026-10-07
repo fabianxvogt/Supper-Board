@@ -2,10 +2,11 @@
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { canonicalDecimal, domainDecimal } from '@/domain/amounts';
-import type { NutrientBasis, NutrientValue } from '@/domain/types';
+import { domainDecimal } from '@/domain/amounts';
+import type { NutrientValue } from '@/domain/types';
 import type { FoodCategory, FoodDetails, FoodSearchHit, FoodSourceMode } from '@/data/repository';
 import { ActionStatus, SubmitButton } from '@/components/SubmitButton';
+import { formatDecimal, nutrientLabel, nutrientBasisLabel } from '@/app/workspace/format';
 
 interface FoodSearchPage {
   items: FoodSearchHit[];
@@ -65,31 +66,6 @@ const NUTRIENT_CODE_SUGGESTIONS = [
   { code: 'niacin_equivalent', unit: 'mg', label: 'Niacinäquivalent' },
 ] as const;
 
-const NUTRIENT_LABELS: Readonly<Record<string, string>> = {
-  energy_kcal: 'Energie',
-  energy_kj: 'Energie',
-  protein: 'Protein',
-  available_carbohydrate: 'Verfügbare Kohlenhydrate',
-  fat: 'Fett',
-  dietary_fiber: 'Ballaststoffe',
-  sodium: 'Natrium',
-  salt_equivalent: 'Salzäquivalent',
-  vitamin_a_re: 'Vitamin A (RE)',
-  vitamin_a_rae: 'Vitamin A (RAE)',
-  folate_blsequiv: 'BLS-Folatäquivalent',
-  dietary_folate: 'Nahrungsfolat',
-  folic_acid: 'Folsäure',
-  folate_dfe: 'Folatäquivalent (DFE)',
-  vitamin_k1: 'Vitamin K1',
-  vitamin_k_total: 'Vitamin K gesamt',
-  vitamin_b6: 'Vitamin B6',
-  niacin: 'Niacin',
-  niacin_equivalent: 'Niacinäquivalent',
-};
-
-function nutrientLabel(value: NutrientValue, sourceName?: string | null): string {
-  return sourceName ?? NUTRIENT_LABELS[value.nutrientId] ?? value.nutrientId.replace(/^unmapped:/, '').replaceAll('_', ' ');
-}
 
 function searchKey(query: string, categoryId: string | undefined, sourceMode: FoodSourceMode): string {
   return `${query}\u0000${categoryId ?? ''}\u0000${sourceMode}`;
@@ -107,7 +83,7 @@ function valueText(value: NutrientValue): string {
   switch (value.valueStatus) {
     case 'numeric':
     case 'explicit_zero':
-      return raw === null ? 'Wert nicht verfügbar' : `${raw.replace('.', ',')} ${value.unit}`;
+      return value.amount === null ? 'Wert nicht verfügbar' : `${formatDecimal(value.amount)} ${value.unit}`;
     case 'trace':
       return value.rawMarker ? `Spur (${value.rawMarker})` : 'Spur';
     case 'below_limit':
@@ -117,21 +93,8 @@ function valueText(value: NutrientValue): string {
     case 'source_not_present':
       return 'In der Quelle nicht enthalten';
     case 'unsupported_mapping':
-      return raw === null ? 'Quellwert, Zuordnung offen' : `${raw.replace('.', ',')} ${value.unit} · Zuordnung offen`;
+      return raw === null ? 'Quellwert, Zuordnung offen' : `${formatDecimal(value.amount ?? raw)} ${value.unit} · Zuordnung offen`;
   }
-}
-function basisLabel(basis: NutrientBasis): string {
-  switch (basis) {
-    case 'edible':
-      return 'Essbarer Anteil';
-    case 'purchase':
-      return 'Einkaufsgewicht';
-    case 'drained':
-      return 'Abgetropfter Anteil';
-    case 'unknown':
-      return 'Unbekannt';
-  }
-  return 'Unbekannt';
 }
 
 function formatScaledValue(value: NutrientValue, grams: string): string {
@@ -139,7 +102,7 @@ function formatScaledValue(value: NutrientValue, grams: string): string {
   if (value.amount === null || grams.trim() === '') return '—';
   try {
     const amount = domainDecimal(value.amount).times(domainDecimal(grams)).dividedBy(100);
-    return `${canonicalDecimal(amount).replace('.', ',')} ${value.unit}`;
+    return `${formatDecimal(amount.toFixed())} ${value.unit}`;
   } catch {
     return '—';
   }
@@ -234,8 +197,7 @@ function DetailPanel({
             <div><dt>Lizenz</dt><dd>{source.license ?? 'Nicht ausgewiesen'}</dd></div>
             <div><dt>Quell-Food-Code</dt><dd>{food.sourceCode ?? 'Nicht ausgewiesen'}</dd></div>
           </dl>
-          {source.sha256 && <p className="help">SHA-256: <code>{source.sha256}</code></p>}
-          {source.status && <p className="help">Freigabestatus: {source.status}{source.publishedAt ? ` · veröffentlicht ${source.publishedAt}` : ''}</p>}
+          <details><summary>Technische Quellnachweise</summary>{source.sha256 && <p className="help">SHA-256: <code>{source.sha256}</code></p>}{source.status && <p className="help">Freigabestatus: {source.status}{source.publishedAt ? ` · veröffentlicht ${source.publishedAt}` : ''}</p>}</details>
           {source.attribution && <p className="help">{source.attribution}</p>}
           {source.sourceUrl && <p><a href={source.sourceUrl} rel="noreferrer">Quelle und Lizenzhinweise öffnen</a></p>}
         </section>
@@ -245,9 +207,9 @@ function DetailPanel({
 
       <section className="stack" aria-labelledby="food-portion-heading">
         <h3 id="food-portion-heading">Menge und Nährwerte</h3>
-        <p className="help">Nährwerte werden unverändert je 100 g angezeigt. Nur numerische Quellwerte lassen sich auf eine ausgewählte Menge skalieren; Marker und fehlende Angaben bleiben ausdrücklich sichtbar.</p>
+        <p className="help">Nährwerte je 100 g und für die gewählte Menge sind zur Lesbarkeit gerundet. Originalwerte bleiben in den Details erhalten; Berechnungen verwenden unverändert exakte Werte. Fehlende Angaben und Quellmarker bleiben sichtbar.</p>
         <label className="field" htmlFor="food-portion-grams">Menge (g)<input id="food-portion-grams" inputMode="decimal" value={grams} onChange={(event) => setGrams(event.currentTarget.value)} aria-describedby="food-basis-help" /></label>
-        <p className="field-hint" id="food-basis-help">Bezugsbasis: {basisLabel(nutrientBasis)}. {portionAvailable ? 'Nur essbarer Anteil lässt sich auf eine Portionsmenge umrechnen.' : 'Die Werte werden nicht auf eine Portionsmenge umgerechnet.'}</p>
+        <p className="field-hint" id="food-basis-help">Bezugsbasis: {nutrientBasisLabel(nutrientBasis)}. {portionAvailable ? 'Nur essbarer Anteil lässt sich auf eine Portionsmenge umrechnen.' : 'Die Werte werden nicht auf eine Portionsmenge umgerechnet.'}</p>
         {measures.length > 0 && <div className="button-row" aria-label="Bestätigte Haushaltsmaße">
           {measures.map((measure) => <button className="button button-small" type="button" key={measure.id} onClick={() => setGrams(measure.gramsPerUnit)}>{measure.label} ({measure.gramsPerUnit} g)</button>)}
         </div>}
@@ -258,12 +220,12 @@ function DetailPanel({
             <tbody>
               {food.nutrients.map((value, index) => {
                 const component = value.sourceComponentCode ? componentByCode.get(value.sourceComponentCode) : undefined;
-                const label = nutrientLabel(value, component?.nameDe);
+                const label = component?.nameDe || nutrientLabel(value.nutrientId);
                 const origin = [value.sourceMethod ? `Methode: ${value.sourceMethod}` : null, value.sourceReference ? `Referenz: ${value.sourceReference}` : null].filter(Boolean).join(' · ');
                 const scaled = portionAvailable ? formatScaledValue(value, grams) : '—';
                 return <tr key={`${value.sourceComponentCode ?? value.nutrientId}-${index}`}>
-                  <th scope="row"><span>{label}</span>{value.sourceComponentCode && <small className="field-hint">{value.sourceComponentCode}</small>}</th>
-                  <td>{valueText(value)}</td>
+                  <th scope="row">{label}</th>
+                  <td>{valueText(value)}<details><summary>Originalwert und Nachweis</summary><p className="help">{value.rawMarker ?? value.amount ?? 'unbekannt'} {value.unit}</p>{value.sourceComponentCode && <p className="help">Quellkomponente: {value.sourceComponentCode}</p>}<p className="help">Nährstoffkennung: {value.nutrientId}</p></details></td>
                   <td>{scaled}</td>
                   <td>{origin || <span className="muted">Keine Einzelreferenz ausgewiesen</span>}</td>
                 </tr>;
@@ -277,7 +239,7 @@ function DetailPanel({
       {food.tags.length > 0 && <section className="stack"><h3>Merkmale</h3><div className="inline">{food.tags.map((tag) => <span className="status" key={tag}>{tag}</span>)}</div></section>}
       <div className="button-row">
         {useLink && <Link className="button button-primary" href={useLink}>Lebensmittel übernehmen</Link>}
-        <span className="field-hint">Lebensmittelversion: <code>{food.foodVersionId}</code></span>
+        <details><summary>Gespeicherte Lebensmittelversion</summary><code>{food.foodVersionId}</code></details>
       </div>
     </section>
   );
@@ -416,6 +378,7 @@ export function CatalogBrowser({
   const [visibleCategories, setVisibleCategories] = useState<FoodCategory[]>(initialCategories);
   const [allCategories, setAllCategories] = useState<FoodCategory[]>(initialCategories);
   const [page, setPage] = useState(initialPage);
+  const [pageSearchKey, setPageSearchKey] = useState(searchKey(initialQuery, initialCategoryId, initialSourceMode));
   const [searchLoading, setSearchLoading] = useState(false);
   const [moreLoading, setMoreLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -435,11 +398,12 @@ export function CatalogBrowser({
   const loadPage = useCallback(async (nextQuery: string, nextCategoryId: string | undefined, nextSourceMode: FoodSourceMode, cursor?: string, append = false) => {
     const sequence = ++searchSequence.current;
     if (append) setMoreLoading(true);
-    else setSearchLoading(true);
+    else { setSearchLoading(true); setMoreLoading(false); }
     setSearchError(null);
     try {
       const result = await searchAction({ query: nextQuery, ...(nextCategoryId ? { categoryId: nextCategoryId } : {}), sourceMode: nextSourceMode, ...(cursor ? { cursor } : {}), limit: PAGE_SIZE });
       if (sequence !== searchSequence.current) return;
+      setPageSearchKey(searchKey(nextQuery, nextCategoryId, nextSourceMode));
       setPage((current) => {
         if (!append) return result;
         const seen = new Set(current.items.map((item) => item.foodVersionId));
@@ -632,7 +596,7 @@ export function CatalogBrowser({
           {categoryLoading && <p className="help" role="status">Unterkategorien werden geladen …</p>}
           {visibleCategories.length > 0 ? <ul className="list-reset catalog-category-list">
             {visibleCategories.map((category) => <li className="list-row" key={category.id}>
-              <button className="button button-quiet" type="button" onClick={() => selectCategory(category)} aria-current={categoryId === category.id ? 'page' : undefined}>{categoryName(category)} <span className="field-hint">({category.code})</span></button>
+              <button className="button button-quiet" type="button" onClick={() => selectCategory(category)} aria-current={categoryId === category.id ? 'page' : undefined}>{categoryName(category)}</button>
             </li>)}
           </ul> : !categoryLoading && <p className="help">Keine Unterkategorien vorhanden. Die Treffer entsprechen der ausgewählten Kategorie.</p>}
           {currentCategory && <button className="button button-small" type="button" onClick={() => { searchSequence.current += 1; setCategoryId(undefined); }}>Treffer dieser Kategorie aufheben</button>}
@@ -644,13 +608,13 @@ export function CatalogBrowser({
           {searchError && <div className="stack"><p className="form-error" role="alert">{searchError}</p><button className="button button-small" type="button" onClick={() => setSearchTick((current) => current + 1)}>Erneut versuchen</button></div>}
           {page.items.length === 0 && !searchLoading && !searchError ? <div className="empty-state"><h3>Keine Lebensmittel gefunden</h3><p>Ändere Suchbegriff oder Kategorie. Ein eigener Haushaltseintrag kann getrennt vom globalen Katalog angelegt werden.</p></div> : <ul className="list-reset">
             {page.items.map((hit) => <li className="list-row" key={hit.foodVersionId}>
-              <div className="split"><div><h3>{hit.nameDe}</h3>{hit.state && <p className="help">Zustand: {hit.state}</p>}<p className="help">{hit.sourceCode ? `Quelle ${hit.sourceCode}` : 'Eigenes Lebensmittel'}{hit.compatibilityKey ? ` · Kompatibilität ${hit.compatibilityKey}` : ''}</p><p className="field-hint">Nährstoffbasis: {basisLabel(hit.nutrientBasis ?? 'unknown')}</p></div><button className="button button-small" type="button" aria-expanded={selectedFoodVersionId === hit.foodVersionId} aria-controls="food-details" onClick={() => selectedFoodVersionId === hit.foodVersionId ? closeDetails() : void openDetails(hit.foodVersionId)}>{selectedFoodVersionId === hit.foodVersionId ? 'Details schließen' : 'Details öffnen'}</button></div>
+              <div className="split"><div><h3>{hit.nameDe}</h3><p className="help">Zustand: {hit.state || 'nicht ausgewiesen'}</p><p className="help">{hit.sourceCode ? 'Quelldatensatz' : 'Eigenes Lebensmittel'}</p><p className="field-hint">Nährstoffbasis: {nutrientBasisLabel(hit.nutrientBasis)}</p></div><button className="button button-small" type="button" aria-expanded={selectedFoodVersionId === hit.foodVersionId} aria-controls="food-details" onClick={() => selectedFoodVersionId === hit.foodVersionId ? closeDetails() : void openDetails(hit.foodVersionId)}>{selectedFoodVersionId === hit.foodVersionId ? 'Details schließen' : 'Details öffnen'}</button></div>
               {hit.nutrientPreview && hit.nutrientPreview.length > 0 && <div className="inline" aria-label="Kompakte Nährwerte je 100 Gramm">
-                {hit.nutrientPreview.map((value, index) => <span className="status" key={`${value.nutrientId}-${index}`}>{value.nutrientId}: {valueText(value)}</span>)}
+                {hit.nutrientPreview.map((value, index) => <span className="status" key={`${value.nutrientId}-${index}`}>{nutrientLabel(value.nutrientId)}: {valueText(value)}</span>)}
               </div>}
             </li>)}
           </ul>}
-          {page.nextCursor && <button className="button" type="button" disabled={moreLoading || searchLoading} onClick={() => void loadPage(query, categoryId, sourceMode, page.nextCursor ?? undefined, true)}>{moreLoading ? 'Weitere Treffer werden geladen …' : 'Weitere Treffer laden'}</button>}
+          {page.nextCursor && <button className="button" type="button" disabled={moreLoading || searchLoading || pageSearchKey !== searchKey(query, categoryId, sourceMode)} onClick={() => void loadPage(query, categoryId, sourceMode, page.nextCursor ?? undefined, true)}>{moreLoading ? 'Weitere Treffer werden geladen …' : 'Weitere Treffer laden'}</button>}
           <p className="field-hint">Die Suche lädt pro Seite höchstens {PAGE_SIZE} Treffer. Weitere Ergebnisse werden ausdrücklich nachgeladen.</p>
         </section>
       </div>

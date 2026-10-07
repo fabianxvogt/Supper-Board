@@ -40,20 +40,21 @@ function parseIngredients(formData: FormData) {
     const basis = basisSchema.parse(bases[index]);
     const unit = units[index].trim() || 'unknown';
     const rawQuantity = quantities[index].trim();
-    const originalText = texts[index].trim();
+    const originalText = texts[index];
     const quantity = rawQuantity ? parseAmount(rawQuantity) : undefined;
     if (quantity && !domainDecimal(quantity).gt(0)) throw new Error('Zutatenmengen müssen größer als null sein.');
     const gramsPerUnit = gramsPerUnits[index].trim() ? parseAmount(gramsPerUnits[index]) : undefined;
     if (gramsPerUnit && !domainDecimal(gramsPerUnit).gt(0)) throw new Error('Bestätigte Gramm je Einheit müssen größer als null sein.');
     const alternativeGroupId = alternatives[index].trim() || undefined;
     const selectedAlternative = selected[index] === 'true';
-    if (!originalText && !foodVersionId && !quantity) return [];
-    if (!originalText && !foodVersionId) throw new Error('Eine nicht zugeordnete Zutat benötigt ihren ursprünglichen Freitext.');
+    if (!originalText.trim() && !foodVersionId && !quantity) return [];
+    if (!originalText.trim() && !foodVersionId) throw new Error('Eine nicht zugeordnete Zutat benötigt ihren ursprünglichen Freitext.');
     return [{ foodVersionId, originalText: originalText || undefined, quantity, unit, basis, confirmedGramsPerUnit: gramsPerUnit, alternativeGroupId, selected: selectedAlternative }];
   });
 }
 
 export async function saveRecipeVersionAction(_state: { error?: string; savedRecipeId?: string }, formData: FormData) {
+  if (formData.get('ingredientPastePending') === 'true') return { error: 'Prüfe und übernimm die eingefügten Zutaten oder verwirf die Liste vor dem Speichern.' };
   const input = z.object({
     operationId,
     recipeId: uuid.optional(),
@@ -77,6 +78,7 @@ export async function saveRecipeVersionAction(_state: { error?: string; savedRec
   });
   if (!input.success) return { error: 'Bitte prüfe Rezeptname, Basisportionen und Mengen.' };
   const context = await getWorkspaceContext();
+  if (stringField(formData, 'draftScope') !== `${context.user.id}:${context.household.id}`) return { error: 'Der aktive Haushalt hat sich geändert. Dein Entwurf gehört zum ursprünglichen Haushalt und wurde nicht gespeichert.' };
   try {
     const recipeId = input.data.recipeId;
     const expectedRevision = input.data.expectedRevision === undefined ? null : Number(input.data.expectedRevision);

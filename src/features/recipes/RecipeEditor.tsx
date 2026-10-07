@@ -1,14 +1,17 @@
 'use client';
 
-import { useActionState, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CALCULATION_VERSION, parseAmount } from '@/domain/amounts';
 import { calculateRecipe } from '@/domain/nutrition';
-import type { FoodVersion, RecipeVersion } from '@/domain/types';
+import type { FoodVersion } from '@/domain/types';
 import { ActionStatus, SubmitButton } from '@/components/SubmitButton';
 import { foodDetailsAction } from '@/app/actions/catalog';
 import { z } from 'zod';
+import { IngredientMatcher } from './IngredientMatcher';
+import { IngredientPaste } from './IngredientPaste';
+import { RecipeNutritionTable } from './RecipeNutritionTable';
+import { mapIngredientFood, readRecentFoods, recentFoodStorageKey, rememberFood, recipeVersionFromDraft } from './ingredient-capture';
 
 export interface RecipeDraftIngredient {
   id: string;
@@ -37,6 +40,7 @@ export interface RecipeEditorValues {
   totalMinutes: string;
   ingredients: RecipeDraftIngredient[];
   steps: string[];
+  captureText?: string;
 }
 
 export interface RecipeSaveState {
@@ -71,10 +75,11 @@ const recipeDraftSchema = z.object({
     selectedAlternative: z.boolean(),
   })),
   steps: z.array(z.string()),
+  captureText: z.string().optional(),
 });
 
 function emptyIngredient(): RecipeDraftIngredient {
-  return { id: crypto.randomUUID(), originalText: '', foodVersionId: '', foodName: '', quantity: '', unit: 'g', basis: 'unknown', gramsPerUnit: '', alternativeGroupId: '', selectedAlternative: true };
+  return { id: crypto.randomUUID(), originalText: '', foodVersionId: '', foodName: '', quantity: '', unit: '', basis: 'unknown', gramsPerUnit: '', alternativeGroupId: '', selectedAlternative: true };
 }
 
 const RECIPE_DRAFT_CHANGE_EVENT = 'supper-board:recipe-draft-change';
@@ -155,6 +160,13 @@ export function RecipeEditor({
   const dirty = Boolean(editedValues || restoredValues);
   const values = editedValues ?? restoredValues ?? initial;
   const currentOperationId = values.operationId ?? operationId;
+  const valuesRef = useRef(values);
+  useEffect(() => { valuesRef.current = values; }, [values]);
+  const recentStorageKey = recentFoodStorageKey(draftScope);
+  const getRecentSnapshot = useCallback(() => readRecipeDraft(recentStorageKey), [recentStorageKey]);
+  const recentSnapshot = useSyncExternalStore(subscribeRecipeDraft, getRecentSnapshot, getEmptyRecipeDraft);
+  const recentFoods = useMemo(() => readRecentFoods(recentSnapshot, draftScope), [draftScope, recentSnapshot]);
+  const [recentStorageError, setRecentStorageError] = useState(false);
   const [state, formAction] = useActionState(async (previousState: RecipeSaveState, formData: FormData) => {
     editRecipeValues((current) => current);
     try {
@@ -180,7 +192,7 @@ export function RecipeEditor({
     const ids = missingFoodVersionsKey.split(',');
     void Promise.all(ids.map(async (id) => {
       try {
-        const details = await foodDetailsAction(id);
+        const details = await foodDetailsAction(id, draftScope);
         return { id, foodVersion: details?.foodVersion ?? null };
       } catch {
         return { id, foodVersion: null };
@@ -197,7 +209,7 @@ export function RecipeEditor({
       }));
     });
     return () => { cancelled = true; };
-  }, [missingFoodVersionsKey]);
+  }, [draftScope, missingFoodVersionsKey]);
 
   useEffect(() => {
     if (restored.invalid) clearRecipeDraft(storageKey);
@@ -215,7 +227,9 @@ export function RecipeEditor({
   }, [dirty, state.savedRecipeId]);
 
   function editRecipeValues(change: (current: RecipeEditorValues) => RecipeEditorValues) {
-    const next = { ...change(values), operationId: currentOperationId };
+    const base = valuesRef.current;
+    const next = { ...change(base), operationId: base.operationId ?? operationId };
+    valuesRef.current = next;
     setEditedValues(next);
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(next));
@@ -263,29 +277,7 @@ export function RecipeEditor({
 
   const calculation = useMemo(() => {
     try {
-      const recipe: RecipeVersion = {
-        id: values.recipeId ?? 'editor-preview',
-        calculationVersion: CALCULATION_VERSION,
-        yieldPortions: values.baseServings.trim() ? parseAmount(values.baseServings) : null,
-        yieldText: values.yieldText || null,
-        finishedWeightGrams: values.finalWeightG ? parseAmount(values.finalWeightG) : null,
-        ingredients: values.ingredients.map((ingredient) => ({
-          id: ingredient.id,
-          foodVersion: foodVersions[ingredient.foodVersionId] ?? loadedFoodVersions[ingredient.foodVersionId] ?? null,
-          quantity: {
-            amount: ingredient.quantity ? parseAmount(ingredient.quantity) : null,
-            unit: ingredient.unit || 'g',
-            basis: ingredient.basis,
-            confirmedGramsPerUnit: ingredient.gramsPerUnit ? parseAmount(ingredient.gramsPerUnit) : null,
-          },
-          freeText: ingredient.originalText || null,
-          ...(ingredient.alternativeGroupId ? {
-            alternativeGroupId: ingredient.alternativeGroupId,
-            selectedAlternative: ingredient.selectedAlternative,
-          } : {}),
-        })),
-      };
-      return { result: calculateRecipe(recipe), error: null };
+      return { result: calculateRecipe(recipeVersionFromDraft(values, { ...foodVersions, ...loadedFoodVersions })), error: null };
     } catch (error) {
       return { result: null, error: error instanceof Error ? error.message : 'Die Nährwertvorschau ist für diese Eingaben nicht verfügbar.' };
     }
@@ -306,6 +298,8 @@ export function RecipeEditor({
       <input type="hidden" name="expectedVersionId" value={values.expectedVersionId ?? ''} />
       <input type="hidden" name="expectedRevision" value={values.expectedRevision ?? ''} />
       <input type="hidden" name="yieldText" value={values.yieldText} />
+      <input type="hidden" name="ingredientPastePending" value={values.captureText?.trim() ? 'true' : 'false'} />
+      <input type="hidden" name="draftScope" value={draftScope} />
       <section className="card stack" aria-labelledby="recipe-basics-heading">
         <p className="eyebrow">{values.recipeId ? 'Neue Rezeptversion' : 'Neues Rezept'}</p>
         <h1 id="recipe-basics-heading">{values.recipeId ? 'Rezept bearbeiten' : 'Rezept erstellen'}</h1>
@@ -318,15 +312,20 @@ export function RecipeEditor({
         <label className="field" htmlFor="recipe-description">Beschreibung (optional)<textarea id="recipe-description" name="description" value={values.description} maxLength={4000} rows={3} onChange={(event) => update('description', event.currentTarget.value)} /></label>
         <div className="form-grid">
           <label className="field" htmlFor="base-servings">Basisportionen <span className="field-hint">optional; unbekannt bleibt leer</span><input id="base-servings" name="baseServings" inputMode="decimal" maxLength={40} value={values.baseServings} onChange={(event) => update('baseServings', event.currentTarget.value)} /><span className="field-hint">{values.yieldText ? `Übernommene Originalangabe: „${values.yieldText}“. ${values.baseServings.trim() ? `Numerische Basis: ${values.baseServings}.` : 'Numerische Basis unbekannt.'}` : 'Nur einen ausdrücklich bekannten Wert eintragen; ohne Zahl gibt es keine Berechnung je Portion.'}</span></label>
+        </div>
+        <details className="stack"><summary>Weitere Rezeptangaben: Gewicht und Zeiten</summary><div className="form-grid">
           <label className="field" htmlFor="final-weight">Fertiges essbares Gesamtgewicht (g)<input id="final-weight" name="finalWeightG" inputMode="decimal" value={values.finalWeightG} onChange={(event) => update('finalWeightG', event.currentTarget.value)} /><span className="field-hint">Nur eintragen, wenn tatsächlich bekannt.</span></label>
           <label className="field" htmlFor="active-minutes">Aktive Arbeitszeit (Min.)<input id="active-minutes" name="activeMinutes" inputMode="numeric" value={values.activeMinutes} onChange={(event) => update('activeMinutes', event.currentTarget.value)} /></label>
           <label className="field" htmlFor="total-minutes">Gesamtdauer (Min.)<input id="total-minutes" name="totalMinutes" inputMode="numeric" value={values.totalMinutes} onChange={(event) => update('totalMinutes', event.currentTarget.value)} /></label>
-        </div>
+        </div></details>
       </section>
 
       <section className="card stack" aria-labelledby="ingredients-heading">
-        <div className="split"><div><p className="eyebrow">Mengen & Zuordnung</p><h2 id="ingredients-heading">Zutaten</h2></div><Link className="button button-small" href={`/discover/foods?returnTo=${encodeURIComponent(values.recipeId ? `/recipes/${values.recipeId}/edit` : '/recipes/new')}`}>Lebensmittel zuordnen</Link></div>
+        <div><p className="eyebrow">Mengen & Zuordnung</p><h2 id="ingredients-heading">Zutaten</h2></div>
         <p className="help">Freitext bleibt erlaubt. Eine nicht zugeordnete Zutat oder unbestätigte Einheit macht betroffene Nährwerte unvollständig, blockiert aber nicht das Speichern.</p>
+        <IngredientPaste text={values.captureText ?? ''} onTextChange={(text) => update('captureText', text)} onConfirm={(rows) => editRecipeValues((current) => ({ ...current, captureText: '', ingredients: [...current.ingredients, ...rows.map((row) => ({ ...emptyIngredient(), originalText: row.sourceText, quantity: row.quantity, unit: row.unit }))] }))} />
+        {values.captureText?.trim() && <p className="alert alert-warning" role="status">Die eingefügte Liste wartet auf deine Prüfung. Übernimm die geprüften Zeilen oder verwirf den Text vor dem Speichern.</p>}
+        {recentStorageError && <p className="help" role="status">Die Auswahl konnte nicht für die nächste Zutat gemerkt werden. Die Zuordnung und dein Rezeptentwurf bleiben erhalten.</p>}
         {values.ingredients.map((ingredient, index) => (
           <fieldset className="stack" key={ingredient.id}>
             <legend>Zutat {index + 1}{ingredient.alternativeGroupId ? ' · Alternative' : ''}</legend>
@@ -339,13 +338,27 @@ export function RecipeEditor({
               <label className="field" htmlFor={`ingredient-quantity-${ingredient.id}`}>Menge<input id={`ingredient-quantity-${ingredient.id}`} name="ingredientQuantity" inputMode="decimal" value={ingredient.quantity} onChange={(event) => updateIngredient(index, { quantity: event.currentTarget.value })} /></label>
               <label className="field" htmlFor={`ingredient-unit-${ingredient.id}`}>Einheit<input id={`ingredient-unit-${ingredient.id}`} name="ingredientUnit" value={ingredient.unit} maxLength={32} onChange={(event) => updateIngredient(index, { unit: event.currentTarget.value })} /></label>
               <label className="field" htmlFor={`ingredient-basis-${ingredient.id}`}>Mengenbasis<select id={`ingredient-basis-${ingredient.id}`} name="ingredientBasis" value={ingredient.basis} onChange={(event) => updateIngredient(index, { basis: event.currentTarget.value as RecipeDraftIngredient['basis'] })}><option value="unknown">Unbekannt / prüfen</option><option value="edible">Essbare Menge</option><option value="purchase">Einkaufsgewicht</option><option value="drained">Abtropfgewicht</option></select></label>
+            </div>
+            {ingredient.foodVersionId && <p className="help">Zustand des zugeordneten Lebensmittels: {foodVersions[ingredient.foodVersionId]?.state || loadedFoodVersions[ingredient.foodVersionId]?.state || 'nicht ausgewiesen'}</p>}
+            <IngredientMatcher ingredientId={ingredient.id} originalText={ingredient.originalText} foodName={ingredient.foodName || foodVersions[ingredient.foodVersionId]?.name || loadedFoodVersions[ingredient.foodVersionId]?.name || ''} foodVersionId={ingredient.foodVersionId} draftScope={draftScope} recentFoods={recentFoods} onClear={() => editRecipeValues((current) => ({ ...current, ingredients: mapIngredientFood(current.ingredients, ingredient.id, { foodVersionId: '', nameDe: '' }) }))} onSelect={(food) => {
+              setLoadedFoodVersions((current) => ({ ...current, [food.foodVersionId]: food.foodVersion }));
+              editRecipeValues((current) => ({ ...current, ingredients: mapIngredientFood(current.ingredients, ingredient.id, food) }));
+              try {
+                const recent = readRecentFoods(sessionStorage.getItem(recentStorageKey), draftScope);
+                sessionStorage.setItem(recentStorageKey, JSON.stringify(rememberFood(recent, food, draftScope)));
+                window.dispatchEvent(new Event(RECIPE_DRAFT_CHANGE_EVENT));
+                setRecentStorageError(false);
+              } catch { setRecentStorageError(true); }
+            }} />
+            <details className="stack"><summary>Umrechnung und Zutatenalternativen</summary>
+            <div className="form-grid">
               <label className="field" htmlFor={`ingredient-conversion-${ingredient.id}`}>Bestätigte Gramm je Einheit<input id={`ingredient-conversion-${ingredient.id}`} name="ingredientGramsPerUnit" inputMode="decimal" value={ingredient.gramsPerUnit} placeholder="optional, bestätigt" onChange={(event) => updateIngredient(index, { gramsPerUnit: event.currentTarget.value })} /></label>
             </div>
-            <p className="help">{ingredient.foodVersionId ? `Zugeordnet: ${ingredient.foodName || ingredient.foodVersionId} · feste Lebensmittelversion` : 'Nicht zugeordnet · Nährwertsumme bleibt für diese Zutat unvollständig'}</p>
             <div className="form-grid">
               <label className="field" htmlFor={`ingredient-alternative-${ingredient.id}`}>Alternativgruppe<select id={`ingredient-alternative-${ingredient.id}`} value={ingredient.alternativeGroupId} onChange={(event) => updateIngredient(index, { alternativeGroupId: event.currentTarget.value })}><option value="">Keine Alternative</option><option value="alternative-1">Alternative 1</option><option value="alternative-2">Alternative 2</option><option value="alternative-3">Alternative 3</option></select></label>
               <label className="inline" htmlFor={`ingredient-selected-${ingredient.id}`}><input id={`ingredient-selected-${ingredient.id}`} type="checkbox" checked={ingredient.selectedAlternative} onChange={(event) => updateIngredient(index, { selectedAlternative: event.currentTarget.checked })} />Diese Zutat als gewählte Alternative berechnen</label>
             </div>
+            </details>
             <div className="button-row">
               <button className="button button-small" type="button" disabled={index === 0} onClick={() => moveIngredient(index, -1)}>Nach oben</button>
               <button className="button button-small" type="button" disabled={index === values.ingredients.length - 1} onClick={() => moveIngredient(index, 1)}>Nach unten</button>
@@ -353,7 +366,7 @@ export function RecipeEditor({
             </div>
           </fieldset>
         ))}
-        <div className="button-row"><button className="button" type="button" onClick={addIngredient}>Freitext-Zutat hinzufügen</button><Link className="button" href={`/discover/foods?returnTo=${encodeURIComponent(values.recipeId ? `/recipes/${values.recipeId}/edit` : '/recipes/new')}`}>Weitere Zutat im Katalog suchen</Link></div>
+        <button className="button" type="button" onClick={addIngredient}>Zutat hinzufügen</button>
       </section>
 
       <section className="card stack" aria-labelledby="steps-heading">
@@ -369,19 +382,14 @@ export function RecipeEditor({
         {calculation.result && <>
           <p className="help">Die Vorschau nutzt nur die festgelegten Rezept-, Lebensmittel- und Mappingversionen. Offene Zuordnungen werden nicht als Null interpretiert.</p>
           {!values.baseServings.trim() && <p className="alert alert-warning" role="status">Basisportionen sind unbekannt. Chargenwerte bleiben sichtbar; Nährwerte je Portion werden nicht berechnet.</p>}
-          <div className="table-scroll"><table><caption className="sr-only">Bekannte Nährwerte der Rezeptcharge und pro Basisportion</caption><thead><tr><th scope="col">Nährstoffkennung</th><th scope="col">Charge</th><th scope="col">Je Basisportion</th><th scope="col">Datenstatus</th></tr></thead><tbody>
-            {calculation.result.total.nutrients.slice(0, 12).map((nutrient) => {
-              const perPortion = calculation.result?.perPortion?.nutrients.find((item) => item.nutrientId === nutrient.nutrientId);
-              return <tr key={nutrient.nutrientId}><th scope="row">{nutrient.nutrientId}</th><td>{nutrient.knownAmount ?? 'unbekannt'} {nutrient.unit}</td><td>{perPortion?.knownAmount ?? 'unbekannt'} {perPortion?.unit ?? nutrient.unit}</td><td>{nutrient.status === 'complete' ? 'vollständig' : `${nutrient.status}: ${nutrient.missingReasons.join(', ')}`}</td></tr>;
-            })}
-          </tbody></table></div>
+          <RecipeNutritionTable calculation={calculation.result} compact />
           {calculation.result.total.nutrients.length === 0 && <p className="alert alert-info">Noch keine zugeordneten Nährstoffwerte. Das Rezept bleibt speicherbar und die Lücke bleibt sichtbar.</p>}
         </>}
       </section>
 
       <section className="sticky-actions stack">
         <ActionStatus error={state.error} />
-        <div className="form-actions"><SubmitButton>Rezeptversion speichern</SubmitButton><Link className="button button-quiet" href={values.recipeId ? `/recipes/${values.recipeId}` : '/recipes'}>Zurück</Link></div>
+        <div className="form-actions"><SubmitButton disabled={Boolean(values.captureText?.trim())}>Rezeptversion speichern</SubmitButton><Link className="button button-quiet" href={values.recipeId ? `/recipes/${values.recipeId}` : '/recipes'}>Zurück</Link></div>
       </section>
     </form>
   );

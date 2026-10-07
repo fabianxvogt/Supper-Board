@@ -8,7 +8,7 @@ import { ACTIVE_HOUSEHOLD_COOKIE } from '@/app/workspace/context';
 import { getWorkspaceContext } from '@/app/workspace/context';
 import { mutationErrorMessage } from '@/app/workspace/mutation-error';
 
-const searchSchema = z.object({ query: z.string().trim().max(160).default(''), categoryId: z.uuid().optional(), sourceMode: z.enum(['all', 'bls', 'household']).default('all'), cursor: z.string().max(300).optional(), limit: z.number().int().min(1).max(60).default(24) });
+const searchSchema = z.object({ query: z.string().trim().max(160).default(''), categoryId: z.uuid().optional(), sourceMode: z.enum(['all', 'bls', 'household']).default('all'), cursor: z.string().max(300).optional(), limit: z.number().int().min(1).max(60).default(24), draftScope: z.string().max(100).optional() });
 const foodVersionSchema = z.uuid();
 const ownFoodSchema = z.object({
   operationId: z.uuid(),
@@ -69,9 +69,7 @@ export async function createHouseholdFoodAction(_state: { error?: string; saved?
   }
 }
 
-export async function searchFoodsAction(input: { query: string; categoryId?: string; sourceMode?: FoodSourceMode; cursor?: string; limit?: number }) {
-  const parsed = searchSchema.safeParse(input);
-  if (!parsed.success) throw new Error('Ungültige Katalogsuche.');
+async function catalogContext(draftScope?: string) {
   const supabase = await createServerSupabaseClient();
   const repository = createRepository(supabase);
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -82,14 +80,29 @@ export async function searchFoodsAction(input: { query: string; categoryId?: str
     const preferredId = cookieStore.get(ACTIVE_HOUSEHOLD_COOKIE)?.value;
     householdId = households.find((household) => household.id === preferredId)?.id ?? households[0]?.id;
   }
-  return repository.searchFoods({ ...parsed.data, householdId });
+  if (draftScope !== undefined && (!user || !householdId || draftScope !== `${user.id}:${householdId}`)) {
+    throw new Error('Der aktive Haushalt hat sich geändert. Öffne den Rezeptentwurf im ursprünglichen Haushalt; deine Angaben bleiben erhalten.');
+  }
+  return { repository, householdId };
 }
 
-export async function foodDetailsAction(foodVersionId: string) {
+export async function searchFoodsAction(input: { query: string; categoryId?: string; sourceMode?: FoodSourceMode; cursor?: string; limit?: number; draftScope?: string }) {
+  const parsed = searchSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Ungültige Katalogsuche.');
+  const { draftScope, ...search } = parsed.data;
+  const { repository, householdId } = await catalogContext(draftScope);
+  return repository.searchFoods({ ...search, householdId });
+}
+
+export async function foodDetailsAction(foodVersionId: string, draftScope?: string) {
   const parsed = foodVersionSchema.safeParse(foodVersionId);
-  if (!parsed.success) return null;
-  const repository = createRepository(await createServerSupabaseClient());
-  return repository.getFoodDetails(parsed.data);
+  if (!parsed.success || (draftScope !== undefined && !z.string().max(100).safeParse(draftScope).success)) return null;
+  const repository = draftScope === undefined
+    ? createRepository(await createServerSupabaseClient())
+    : (await catalogContext(draftScope)).repository;
+  const food = await repository.getFoodDetails(parsed.data);
+  if (draftScope !== undefined && food.ownerHouseholdId && food.ownerHouseholdId !== draftScope.split(':')[1]) return null;
+  return food;
 }
 
 export async function foodCategoriesAction(parentId?: string) {

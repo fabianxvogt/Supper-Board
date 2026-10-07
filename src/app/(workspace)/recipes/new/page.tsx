@@ -11,8 +11,8 @@ export default async function NewRecipePage({ searchParams }: { searchParams: Pr
   const context = await getWorkspaceContext();
   const foodVersionId = params.foodVersionId && z.uuid().safeParse(params.foodVersionId).success ? params.foodVersionId : undefined;
   const food = foodVersionId ? await context.repository.getFoodDetails(foodVersionId).catch(() => null) : null;
-  if (foodVersionId && !food) notFound();
-  const ingredients = food ? [{ id: crypto.randomUUID(), originalText: food.nameDe, foodVersionId: food.foodVersionId, foodName: food.nameDe, quantity: '', unit: 'g', basis: 'unknown' as const, gramsPerUnit: '', alternativeGroupId: '', selectedAlternative: true }] : [];
+  if (foodVersionId && (!food || (food.ownerHouseholdId && food.ownerHouseholdId !== context.household.id))) notFound();
+  const ingredients = food ? [{ id: crypto.randomUUID(), originalText: food.nameDe, foodVersionId: food.foodVersionId, foodName: food.nameDe, quantity: '', unit: '', basis: 'unknown' as const, gramsPerUnit: '', alternativeGroupId: '', selectedAlternative: true }] : [];
   const initial: RecipeEditorValues = { title: '', description: '', baseServings: '', yieldText: '', finalWeightG: '', activeMinutes: '', totalMinutes: '', ingredients, steps: [] };
   const foodVersions: Record<string, FoodVersion> = food ? { [food.foodVersionId]: food.foodVersion } : {};
   return (
