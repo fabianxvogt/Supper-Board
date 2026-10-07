@@ -1,0 +1,114 @@
+{
+  "reportVersion": 1,
+  "source": {
+    "code": "bls_4_0",
+    "releaseCode": "BLS_4_0_2025_DE",
+    "version": "4.0",
+    "sha256": "12b7a6ba62807ec9b301eb276f897dc85f99b2292311618dec3749a12d984c91",
+    "license": "CC BY 4.0",
+    "attribution": "Bundeslebensmittelschlüssel (BLS) 4.0, Max Rubner-Institut; source: https://doi.org/10.25826/Data20251217-134202-0"
+  },
+  "archive": {
+    "sizeBytes": 14263306,
+    "files": [
+      {
+        "path": "BLS_4_0_2025_DE/BLS_4_0_Components_DE_EN.xlsx",
+        "compressedBytes": 18081,
+        "uncompressedBytes": 21741
+      },
+      {
+        "path": "BLS_4_0_2025_DE/BLS_4_0_Daten_2025_DE.xlsx",
+        "compressedBytes": 13985428,
+        "uncompressedBytes": 14093078
+      },
+      {
+        "path": "BLS_4_0_2025_DE/BLS_4_0_Dokumentation_DE.pdf",
+        "compressedBytes": 259033,
+        "uncompressedBytes": 469803
+      }
+    ]
+  },
+  "workbook": {
+    "foodCount": 7140,
+    "componentCount": 138,
+    "headerCount": 418,
+    "valueFieldCount": 985320,
+    "completeHeaderMapping": true,
+    "mappedComponentCount": 24,
+    "unmappedComponentCount": 114,
+    "duplicateFoodCodes": 0,
+    "foodGroups": {
+      "bls_bread": 186,
+      "bls_cereals": 231,
+      "bls_fine_baked_goods": 466,
+      "bls_eggs_pasta": 104,
+      "bls_fruit": 275,
+      "bls_vegetables": 560,
+      "bls_legumes_nuts_alternatives": 142,
+      "bls_potatoes_starches_mushrooms": 157,
+      "bls_dairy": 279,
+      "bls_non_alcoholic_drinks": 114,
+      "bls_alcoholic_drinks": 119,
+      "bls_fats_oils": 65,
+      "bls_seasonings_cooking": 97,
+      "bls_sweets": 253,
+      "bls_fish_shellfish": 520,
+      "bls_red_meat": 685,
+      "bls_game_poultry_offal": 462,
+      "bls_meat_products": 375,
+      "bls_plant_dominant_dishes": 1165,
+      "bls_animal_dominant_dishes": 885,
+      "unassigned": 0
+    }
+  },
+  "valueStatusCounts": {
+    "numeric_nonzero": 656320,
+    "numeric_zero": 213181,
+    "dash_missing": 110083,
+    "blank_missing": 59,
+    "below_loq": 746,
+    "below_lod": 2733,
+    "below_lod_or_loq": 392,
+    "trace": 1806
+  },
+  "sourceMethodCounts": {
+    "Formelberechnung": 142395,
+    "Literatur": 5177,
+    "Nährstoffdatenbank": 25486,
+    "Analyse": 24066,
+    "Logische Null": 18566,
+    "Aggregation": 4106,
+    "Übernommener Wert": 19451,
+    "-": 110182,
+    "Musterberechnung": 28073,
+    "Spuren": 1800,
+    "Labelangabe": 454,
+    "Logische Annahme": 38,
+    "Reskalierung": 22957,
+    "Rezeptberechnung": 582569
+  },
+  "negativeValueCount": 0,
+  "unknownMarkerCount": 0,
+  "unknownMarkerSamples": [],
+  "exactKnownReleaseRegression": {
+    "applicable": true,
+    "passed": true,
+    "differences": [],
+    "expected": {
+      "foodCount": 7140,
+      "componentCount": 138,
+      "headerCount": 418,
+      "valueFieldCount": 985320,
+      "numeric_nonzero": 656320,
+      "numeric_zero": 213181,
+      "dash_missing": 110083,
+      "blank_missing": 59,
+      "below_loq": 746,
+      "below_lod": 2733,
+      "below_lod_or_loq": 392,
+      "trace": 1806
+    }
+  },
+  "valid": true,
+  "errors": []
+}

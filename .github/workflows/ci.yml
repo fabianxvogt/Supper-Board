@@ -1,0 +1,39 @@
+name: Nutrition application checks
+on:
+  push:
+    branches: [main, feat/nutrition-v1]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run db:start
+      - run: npm run db:reset
+      - run: npm run db:env
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run test:db
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start local application
+        run: npm run start &
+      - run: npm run test:e2e
+      - name: Stop isolated local database
+        if: always()
+        run: npm run db:stop
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-report
+          path: playwright-report/
+          retention-days: 7

@@ -1,0 +1,2 @@
+export const AUTH_PASSWORD_MIN_UTF8_BYTES = 8;
+export const AUTH_PASSWORD_MAX_UTF8_BYTES = 72;

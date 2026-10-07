@@ -1,116 +1,53 @@
-# Supper Board
+# Supper Board Nutrition
 
-A shared kitchen board for a two-person household. It shows what's for dinner tonight, the two-week plan with recipes, when to thaw things, and the next grocery order. Claude writes the meal plan every two weeks from what we liked, and a shopping agent places the Walmart pickup order.
+A German-language household meal planner built from [Supper Board](https://github.com/weezerhunter/Supper-Board), with versioned food/recipe data, per-person portions and planned nutrition, private optional profiles, inventory and shopping. No body measurements are required to plan meals. Planned nutrition is not recorded consumption or medical advice.
 
-I'm not a developer. I built all of this in an afternoon by talking to Claude: the page, the automation, and the tablet setup. This repo has everything you need to build your own.
+**Status: mandatory M0–M8 implemented and locally verified; local V1 complete.** All58 required acceptance cases passed. This is not a hosted production deployment. See [implementation status](docs/IMPLEMENTATION_STATUS.md), [binding roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [actual verification report](docs/TEST_REPORT.md). Optional E1–E7 integrations remain Later.
 
-**[Try the demo →](https://weezerhunter.github.io/Supper-Board/#today)**: sample data, runs in your browser, nothing to install.
+## Local development
 
-<p>
-  <img src="docs/screenshots/phone-tonight.png" width="230" alt="Tonight screen on a phone: tonight's meal, push-back buttons, thaw reminder, and a rating prompt">
-  <img src="docs/screenshots/phone-plan.png" width="230" alt="Two-week plan on a phone, with cook nights, leftovers, and thaw reminders">
-  <img src="docs/screenshots/phone-recipe.png" width="230" alt="Recipe view with tap-to-check ingredients and numbered steps">
-</p>
-<img src="docs/screenshots/tablet-tonight.png" width="720" alt="Kitchen tablet layout with three columns: tonight, the coming week, and the next order and freezer">
+Requirements: Node **22.23.2**, npm **10.9.8**, running Docker. All framework/library versions are pinned in `package.json` and `package-lock.json`: Next16.3.8, React19.3.0, TypeScript5.9.3, SupabaseCLI2.119.0, SupabaseJS2.117.2, SSR0.12.7, Zod4.6.5, decimal.js10.6.0, Vitest5.0.3 and Playwright1.63.0.
 
-## What it does
-
-**For the two of us, on our phones and a tablet on the kitchen wall:**
-- **Tonight:** what's for dinner. Tap it for the recipe, with ingredients you can check off and a "keep screen on" button for cooking.
-- **Two-week plan:** about 3 cook nights a week, each batched so leftovers cover the next night, plus a flexible night.
-- **Thaw reminders:** the night before a meal that uses frozen meat, the board says "Before bed: move the chicken to the fridge," with a button to mark it done.
-- **Push back a day:** when plans change, slide tonight's meal and everything after it later by 1 or 2 days, with Undo. Thaw reminders move along with the meals.
-- **Ratings and notes:** star each cook night and leave notes like "try with angel hair next time."
-- **Shopping:** a shared "add to next order" list, pantry staples you mark Have or Low, and a freezer list.
-- **Requests:** "more fish," "nothing heavy the week of the 20th." The next plan takes these into account.
-
-**On a schedule, without anyone asking:**
-- **Tuesday:** Claude checks the last order's emails for anything out of stock or substituted and fixes the board to match. Then it reads every rating, note, request, freezer item, and staple, drafts the next two weeks with original recipes and a grocery list, and posts the draft to the board as "ready to review."
-- **Before Thursday:** we look it over, mark anything we don't want as "Replace," and tap **Approve**.
-- **Thursday evening:** Claude swaps out the marked meals and merges the plan's groceries, our quick-adds, and Low staples into one list. It saves the list on the board and as a Google Doc.
-- **Thursday 7 PM:** our shopping agent (Meta's Muse) picks up the doc, builds the Walmart pickup order, and asks us to approve it.
-- **Sunday afternoon:** pickup. Week 2's proteins go straight into the freezer, and the new plan starts Monday.
-
-All we do is rate dinners and spend about two minutes reviewing the plan and the order.
-
-## How it works
-
-```mermaid
-flowchart LR
-  subgraph Board["Supper Board (Claude artifact)"]
-    UI["Phone & tablet page"]
-    DB[("Shared database<br/>meals · draft · history · notes<br/>grocery · staples · freezer · plan")]
-    UI <--> DB
-  end
-  You(["Both of us"]) -->|"rate, note, add groceries,<br/>push back, approve"| UI
-  T1["Tuesday task<br/>(Claude, cloud)"] -->|"reads feedback,<br/>writes next plan + recipes"| DB
-  T2["Thursday task<br/>(Claude, cloud)"] -->|"finalizes plan,<br/>builds order list"| DB
-  T2 -->|"saves list"| GD["Google Drive doc"]
-  GD -->|"Thursday 7 PM"| Agent["Shopping agent<br/>(Meta Muse)"]
-  Agent -->|"builds order,<br/>asks to approve"| Store["Walmart pickup"]
+```sh
+npm ci
+npm run db:start
+npm run db:reset
+npm run db:env
+npm run dev
 ```
 
-There are three moving parts:
+`db:reset` destroys **only this project's local development database** and rebuilds it from migrations. Never use it against an existing user's data. `db:env` writes ignored `.env.local` with local credentials without printing them; existing configuration is preserved unless explicitly replaced. No cloud account or paid service is required for the local core.
 
-1. **The board** ([`board/supper-board.html`](board/supper-board.html)) is one HTML file published as a **Claude artifact**. Artifacts can have a small shared database (`window.claude.use("db")`) that updates live for everyone who opens the page. Claude can read and write it too. That's the whole backend: no server, no hosting, no accounts to manage beyond Claude itself.
-2. **Two scheduled tasks** ([`automation/`](automation/)) are prompts that Claude runs on its own every week in a fresh cloud session. They read and write the same database. Each one checks the plan's dates before doing anything, so pushing the plan back automatically pushes the cycle back too.
-3. **The grocery handoff.** Walmart has no public API for placing orders, so a shopping agent that can use Walmart's site does the last step. Claude never spends money; the agent asks before placing the order.
+Local app: http://127.0.0.1:3000. Isolated Supabase API55321, database55322, Studio55323, mail55324. Confirmed data must survive reload/week changes; no automatic demo reseed.
 
-## The weekly cycle
+## Verification commands
 
-| When | Who | What happens | Board status |
-|---|---|---|---|
-| Daily | Us | Cook, rate, add notes and groceries, push back if needed | `active` |
-| Tue ~6:50 AM | Claude | Checks the last order for missing items, then drafts the next 2 weeks: recipes, thaw schedule, grocery list | `drafted` |
-| Tue–Thu | Us | Review, mark meals to replace, **Approve** | `approved` |
-| Thu ~5:50 PM | Claude | Swaps marked meals, builds the final list, saves a Google Doc | `list_ready` |
-| Thu 7:00 PM | Shopping agent | Builds the Walmart pickup order and asks us to approve | |
-| Thu–Fri | Us | Approve in the agent's app, tap **I placed the order** | `ordered` |
-| Sun afternoon | Us | Pickup. Freeze week-2 proteins. | |
-| Mon | Board | New plan is live | `active` |
-
-## What's in this repo
-
-```
-board/supper-board.html          The board itself (publish this as a Claude artifact)
-automation/
-  1-plan-draft-task.md           Tuesday scheduled-task prompt (fill in the [brackets])
-  2-grocery-list-task.md         Thursday scheduled-task prompt
-  3-grocery-agent-handoff.md     Message to set up your shopping agent
-guides/
-  setup.md                       Build your own, step by step
-  data-model.md                  Every collection and field the page uses
-  kitchen-tablet.md              Tablet picks, Fire/Silk notes, kiosk mode, mounting
-docs/                            Standalone demo (GitHub Pages) + screenshots
-tools/build_demo.py              Rebuilds docs/index.html from board/
+```sh
+npm run typecheck
+npm run lint
+npm test
+npm run test:db
+npm run build
+npx playwright install chromium
+E2E_SYNTHETIC=1 npm run test:e2e
 ```
 
-## Build your own
+The database and running app are required for integration/browser checks. Browser fixtures refuse non-project Supabase hosts and create/delete only their exact synthetic accounts and households. `E2E_SYNTHETIC=1` explicitly enables those workflows; without it, the tests skip and do not prove acceptance. For a nondefault app port, set `PLAYWRIGHT_BASE_URL`, for example `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3183 E2E_SYNTHETIC=1 npm run test:e2e`. The [test report](docs/TEST_REPORT.md) distinguishes actual passes from checks not executed; command definitions alone are not proof.
 
-Start with **[guides/setup.md](guides/setup.md)**. In short:
+Final observed checks:61 unit tests,17 database tests,3 enabled production-browser journeys,zero-warning lint,typecheck and optimized build. The full official workbook also validates after the narrow ExcelJS→UUID11.1.1 override; `npm audit --omit=dev` reports0 vulnerabilities. This avoids npm's proposed breaking ExcelJS downgrade.
 
-1. Attach `board/supper-board.html` to a Claude chat and ask Claude to publish it as an artifact with the `db` capability.
-2. Give Claude your current meal plan and ask it to load the plan using [the data model](guides/data-model.md).
-3. Share the board with your household as **Editors**.
-4. Ask Claude to create the two scheduled tasks from [`automation/`](automation/).
-5. Hook up your shopping agent, or just use the **Copy list** button.
+## Data and operation
 
-## Things I learned along the way
+BLS4.0 is the primary generic food catalog under CC BY4.0. [Data sources](docs/DATA_SOURCES.md) documents the full import commands, official archive/hash, original markers and attribution. Development fixtures are synthetic, optional and clearly labeled. No missing nutrient is replaced with zero or language-model output. References require original-source verification and independent review before activation; manual targets remain usable without a reference pack.
 
-- **Plan ahead, then pause for review.** Drafting Tuesday and ordering Thursday leaves time to say no to a meal before it turns into groceries.
-- **The schedule has to bend.** The most common change isn't swapping two dinners. It's "we're going out, push everything back a day." That got its own button, and the automation reads the plan's dates instead of assuming fixed ones.
-- **Make thawing part of the plan.** Meals that use frozen meat carry a `thaw` field, and the board shows the reminder the night before. It's the feature we use most.
-- **Use a shopping agent, not browser automation.** I first had Claude drive Chrome on my laptop to fill the Walmart cart. That works, but it needs the computer on at the right time. Handing a doc to an agent that has its own browser is more reliable.
-- **Everyone needs to sign in.** The shared database only loads for signed-in people the board has been shared with. Both of us need Claude accounts, and so does the tablet.
-- **Mock it up first.** I tried colors and the tablet layout in Claude Design before changing the live board.
+Recipes and plans bind immutable source versions. Cooking checklist completion is not stock consumption. Ordered items are expected goods, not inventory; only confirmed receipt changes inventory. External merchant/map links neither guarantee availability nor place an order.
 
-## Limitations
+See the [documentation index](docs/README.md) for architecture, sources, nutrition methods, UX, migrations, operation and verification. Production deployment, controller/legal configuration, backups and auth redirects require an explicitly configured operating environment; none is claimed here.
 
-- The board only runs as a Claude artifact. If you host the HTML somewhere else, it has nowhere to save data. The demo works only because of a fake database in [`docs/claude-shim.js`](docs/claude-shim.js).
-- The board can't push notifications to your phones. Reminders come from the scheduled tasks, which notify the account owner, or from your calendar.
-- Scheduled-task and artifact features depend on your Claude plan and may change.
-- The meal plans and recipes are written by an AI. Check them against your own allergies and food-safety habits.
+## Upstream and license
 
-## License
+This is a [true GitHub fork](https://github.com/fabianxvogt/Supper-Board) of `weezerhunter/Supper-Board`, baseline `0d31989d65933b6491bbfa5eb178e5a55c904f85`, development branch `feat/nutrition-v1`. [Baseline evidence](docs/UPSTREAM_BASELINE.md).
 
-MIT. See [LICENSE](LICENSE).
+The original `board/`, `automation/`, `guides/`, `docs/index.html`, demo shim/seed and original screenshots remain reference material. The old static demo is **browser-only sample storage**, not the new application. Its Claude/Drive/Walmart/Muse prompts are optional templates, not connected services. [Original upstream README](https://github.com/weezerhunter/Supper-Board/blob/0d31989d65933b6491bbfa5eb178e5a55c904f85/README.md).
+
+MIT code license and original copyright retained; see [LICENSE](LICENSE). Food/reference source licensing is separate from the code license. No secrets, private body data or private recipes belong in this public source fork.
