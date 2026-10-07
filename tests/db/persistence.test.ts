@@ -103,6 +103,29 @@ afterAll(async () => {
 });
 
 describe('PostgreSQL persistence and security regressions', () => {
+  it('denies direct browser-role lineage destruction and access to future tables without explicit grants', async () => {
+    const tableName = `grant_boundary_${randomUUID().replaceAll('-', '')}`;
+    await db.query(`create table public.${tableName} (id integer)`);
+    await db.query(`insert into public.${tableName}(id) values(1)`);
+
+    for (const role of ['anon', 'authenticated']) {
+      const statements = [
+        'truncate public.data_import_sources',
+        `insert into public.${tableName}(id) values(2)`,
+        `select id from public.${tableName}`,
+      ];
+      if (role === 'anon') statements.push('select source_hash from public.data_import_sources');
+      for (const statement of statements) {
+        await db.query('savepoint direct_grant_access');
+        await db.query(`set local role ${role}`);
+        await expect(db.query(statement)).rejects.toMatchObject({ code: '42501' });
+        await db.query('rollback to savepoint direct_grant_access');
+        await db.query('release savepoint direct_grant_access');
+      }
+    }
+    expect((await db.query(`select id from public.${tableName}`)).rows).toEqual([{ id: 1 }]);
+  });
+
   it('M5 prevents changes to a published reference value used by immutable targets', async () => {
     await expectDatabaseError(
       () => db.query("update public.reference_values set value=1 where immutable_key='efsa_q27_protein_pri'"),

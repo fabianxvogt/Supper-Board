@@ -2,7 +2,7 @@
 
 A German-language household meal planner built from [Supper Board](https://github.com/weezerhunter/Supper-Board), with versioned food/recipe data, per-person portions and planned nutrition, private optional profiles, inventory and shopping. No body measurements are required to plan meals. Planned nutrition is not recorded consumption or medical advice.
 
-**Status: mandatory M0–M8 implemented and locally verified; local V1 complete.** All58 required acceptance cases passed. This is not a hosted production deployment. See [implementation status](docs/IMPLEMENTATION_STATUS.md), [binding roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [actual verification report](docs/TEST_REPORT.md). Optional E1–E7 integrations remain Later.
+**Live application: [supper-board-nutrition.vercel.app](https://supper-board-nutrition.vercel.app).** Mandatory M0–M8 is implemented; all58 required local acceptance cases passed. Hosted sign-in, body-free household/recipe/plan/shopping persistence and cross-account privacy were also exercised with exact synthetic accounts. **Public signup and password-recovery email delivery await a verified SMTP sender; confirmations remain enabled.** See [implementation status](docs/IMPLEMENTATION_STATUS.md), [binding roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [actual verification report](docs/TEST_REPORT.md). Optional E1–E7 integrations remain Later.
 
 ## Local development
 
@@ -34,7 +34,7 @@ E2E_SYNTHETIC=1 npm run test:e2e
 
 The database and running app are required for integration/browser checks. Browser fixtures refuse non-project Supabase hosts and create/delete only their exact synthetic accounts and households. `E2E_SYNTHETIC=1` explicitly enables those workflows; without it, the tests skip and do not prove acceptance. For a nondefault app port, set `PLAYWRIGHT_BASE_URL`, for example `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3183 E2E_SYNTHETIC=1 npm run test:e2e`. The [test report](docs/TEST_REPORT.md) distinguishes actual passes from checks not executed; command definitions alone are not proof.
 
-Final observed checks:61 unit tests,17 database tests,3 enabled production-browser journeys,zero-warning lint,typecheck and optimized build. The full official workbook also validates after the narrow ExcelJS→UUID11.1.1 override; `npm audit --omit=dev` reports0 vulnerabilities. This avoids npm's proposed breaking ExcelJS downgrade.
+Latest observed checks:61 unit tests,18 database tests,3 enabled local production-browser journeys,zero-warning lint,typecheck and optimized builds. The hosted grant repair has failing-before/passing-after coverage and an independent clear review. The full official workbook also validates after the narrow ExcelJS→UUID11.1.1 override; `npm audit --omit=dev` reports0 vulnerabilities. This avoids npm's proposed breaking ExcelJS downgrade.
 
 ## Data and operation
 
@@ -42,7 +42,7 @@ BLS4.0 is the primary generic food catalog under CC BY4.0. [Data sources](docs/D
 
 Recipes and plans bind immutable source versions. Cooking checklist completion is not stock consumption. Ordered items are expected goods, not inventory; only confirmed receipt changes inventory. External merchant/map links neither guarantee availability nor place an order.
 
-See the [documentation index](docs/README.md) for architecture, sources, nutrition methods, UX, migrations, operation and verification. Production deployment, controller/legal configuration, backups and auth redirects require an explicitly configured operating environment; none is claimed here.
+See the [documentation index](docs/README.md) for architecture, sources, nutrition methods, UX, migrations, operation and verification. Vercel Hobby and an isolated free Supabase project are configured in Frankfurt with the full official catalog and exact HTTPS Auth redirects. [Operations](docs/OPERATIONS.md) records the deployment and remaining email, backup-policy and controller/legal boundaries; deployment alone does not establish public-service readiness.
 
 ## Upstream and license
 

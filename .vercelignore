@@ -1,13 +1,12 @@
-node_modules/
-.next/
 .env
 .env.*
-!.env.example
 .vercel/
 .data/
 .supabase/
 supabase/.temp/
 supabase/.branches/
+.next/
+node_modules/
 coverage/
 playwright-report/
 test-results/
