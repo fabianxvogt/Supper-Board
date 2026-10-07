@@ -9,10 +9,14 @@ export const slotNames: Record<string, string> = {
   snack: 'Snack',
 };
 const NUTRIENT_LABELS: Readonly<Record<string, string>> = {
+  energy: 'Energie',
+  energy_kcal: 'Energie (kcal)',
+  energy_kj: 'Energie (kJ)',
   protein: 'Protein',
   available_carbohydrate: 'Verfügbare Kohlenhydrate',
   dietary_fiber: 'Ballaststoffe',
   fat: 'Fett',
+  niacin: 'Niacin',
   vitamin_a_re: 'Vitamin A (RE)',
   vitamin_a_rae: 'Vitamin A (RAE)',
   vitamin_e_alpha_tocopherol: 'Vitamin E (α-Tocopherol)',
@@ -34,6 +38,7 @@ const NUTRIENT_LABELS: Readonly<Record<string, string>> = {
 };
 
 export function nutrientLabel(nutrientId: string): string {
+  if (nutrientId.startsWith('unmapped:')) return `Quellkomponente ${nutrientId.slice('unmapped:'.length)} (nicht zugeordnet)`;
   return Object.hasOwn(NUTRIENT_LABELS, nutrientId) ? NUTRIENT_LABELS[nutrientId] : nutrientId;
 }
 

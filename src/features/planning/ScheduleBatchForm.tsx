@@ -34,6 +34,7 @@ export function ScheduleBatchForm({
   planStartDate,
   planEndDate,
   planTitle,
+  initialRecipeVersionId,
   operationId,
   action,
 }: {
@@ -45,6 +46,7 @@ export function ScheduleBatchForm({
   planStartDate: string;
   planEndDate: string;
   planTitle?: string;
+  initialRecipeVersionId?: string;
   operationId: string;
   action: ScheduleBatchAction;
 }) {
@@ -86,7 +88,7 @@ export function ScheduleBatchForm({
       <div><p className="eyebrow">Neue Kochcharge</p><h2>Rezept einplanen</h2><p className="muted">Kochmenge und persönliche Zuteilungen sind getrennt. Nicht zugeteilte Portionen bleiben als Rest verfügbar.</p></div>
       <div className="form-grid">
         <label className="field" htmlFor="schedule-recipe">Rezept
-          <select id="schedule-recipe" name="recipeVersionId" required defaultValue="">
+          <select id="schedule-recipe" name="recipeVersionId" required defaultValue={initialRecipeVersionId ?? ''}>
             <option value="" disabled>Rezept auswählen</option>
             {recipes.map((recipe) => <option key={recipe.currentVersionId} value={recipe.currentVersionId}>{recipe.title} · {recipe.baseServings == null ? 'Basisportionen unbekannt' : `Basis ${recipe.baseServings} Portionen`}</option>)}
           </select>

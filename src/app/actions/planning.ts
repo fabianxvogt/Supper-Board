@@ -136,11 +136,9 @@ export async function scheduleDirectFoodAction(_state: { error?: string; saved?:
   const context = await getWorkspaceContext();
   try {
     const date = validateLocalDate(input.data.date);
-    if (input.data.planId) {
-      const startDate = input.data.planStartDate ? validateLocalDate(input.data.planStartDate, 'planStartDate') : null;
-      const endDate = input.data.planEndDate ? validateLocalDate(input.data.planEndDate, 'planEndDate') : null;
-      if (!startDate || !endDate || date < startDate || date > endDate) return { error: 'Das Datum liegt außerhalb des aktiven Planzeitraums.' };
-    }
+    const startDate = input.data.planStartDate ? validateLocalDate(input.data.planStartDate, 'planStartDate') : date;
+    const endDate = input.data.planEndDate ? validateLocalDate(input.data.planEndDate, 'planEndDate') : date;
+    if (endDate < startDate || date < startDate || date > endDate) return { error: 'Das Datum liegt außerhalb des gewählten Planzeitraums.' };
     const quantityG = parseAmount(input.data.quantityG);
     if (!domainDecimal(quantityG).gt(0)) return { error: 'Die geplante Menge muss größer als null sein.' };
     const result = await context.repository.scheduleDirectFood({
@@ -149,6 +147,8 @@ export async function scheduleDirectFoodAction(_state: { error?: string; saved?:
       payload: {
         householdId: context.household.id,
         planId: input.data.planId,
+        planStartDate: startDate,
+        planEndDate: endDate,
         foodVersionId: input.data.foodVersionId,
         slot: input.data.slot,
         personId: input.data.personId,

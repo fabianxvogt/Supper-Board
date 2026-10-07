@@ -1,62 +1,66 @@
+import Link from 'next/link';
 import Decimal from 'decimal.js';
 import type { NutrientResult, NutrientWeekSummary, PersonDayResult, PersonWeekResult, TargetComparison } from '@/domain/types';
 import { formatDecimal, formatLocalDate, nutrientLabel } from '@/app/workspace/format';
+
+const HEADLINE_NUTRIENTS = ['energy_kcal', 'protein', 'available_carbohydrate', 'fat', 'dietary_fiber'];
+const SOURCE_STATUS: Record<string, string> = {
+  numeric: 'Zahlenwert', explicit_zero: 'Explizite Null', trace: 'Spur', below_limit: 'Unter Bestimmungsgrenze',
+  missing: 'Wert fehlt', source_not_present: 'Nicht in der Quelle enthalten', unsupported_mapping: 'Nicht zugeordnet',
+  quantity_unconfirmed: 'Menge unbestätigt', alternative_unselected: 'Alternative nicht gewählt',
+};
+const RELATIONS: Record<string, string> = { below: 'unter dem gewählten Ziel', at: 'am gewählten Ziel', within: 'im gewählten Bereich', above: 'über dem gewählten Ziel' };
 
 function isEnergyValue(nutrient: NutrientResult | NutrientWeekSummary): boolean {
   return /energy|kcal|kilojoule/i.test(nutrient.nutrientId) || /^(kcal|kj)$/i.test(nutrient.unit);
 }
 
-function percentage(fraction: string | null | undefined): string | null {
-  if (!fraction) return null;
-  const value = Number(fraction) * 100;
-  return Number.isFinite(value) ? `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(value)} %` : null;
+function uncertainty(reasons: string[]): string {
+  if (reasons.some((reason) => reason.includes('recipe_yield_unknown'))) return 'Bestätige die Basisportionen im Rezept und plane die neue Rezeptversion ein.';
+  if (reasons.some((reason) => /quantity|basis|ingredient_unmapped|alternative/.test(reason))) return 'Prüfe Zutaten, gewählte Alternativen, Mengen und Bezugsbasis im Rezept.';
+  if (reasons.some((reason) => /flexible_meal|meal_source|recipe_version/.test(reason))) return 'Ersetze den offenen Termin durch ein verfügbares Rezept oder Lebensmittel mit bestätigter Menge.';
+  return 'Mindestens ein Quellwert fehlt oder ist nicht zugeordnet. Prüfe die Quelldetails; fehlende Werte werden nicht als null ergänzt.';
 }
 
-function targetText(comparison: TargetComparison | undefined): string {
-  if (!comparison) return 'Kein Ziel gewählt';
-  if (!comparison.available) {
-    if (comparison.target.unit === 'energy_percent') return 'Dieses Referenzziel bleibt in E%; ohne ausdrücklich gewählte Planungsenergie ist kein Grammvergleich verfügbar.';
-    return comparison.reason ? `Vergleich offen: ${comparison.reason}` : 'Vergleich offen';
-  }
+function targetText(comparison: TargetComparison): string {
   const target = comparison.target;
-  if (target.type === 'point' && target.amount) return `gewähltes Tagesziel: ${formatDecimal(target.amount)} ${target.unit}`;
-  if (target.type === 'range' && target.minimum && target.maximum) return `gewählter Zielbereich: ${formatDecimal(target.minimum)}–${formatDecimal(target.maximum)} ${target.unit}`;
-  if (target.type === 'minimum' && target.amount) return `eigenes Minimum: ${formatDecimal(target.amount)} ${target.unit}`;
-  if (target.type === 'maximum' && target.amount) return `eigenes Maximum: ${formatDecimal(target.amount)} ${target.unit}`;
-  return 'Zielwert unvollständig';
+  if (target.type === 'range') return `Gewählter Zielbereich: ${formatDecimal(target.minimum)}–${formatDecimal(target.maximum)} ${target.unit}`;
+  const prefix = target.type === 'minimum' ? 'Eigenes Minimum' : target.type === 'maximum' ? 'Eigenes Maximum' : 'Gewähltes Tagesziel';
+  return `${prefix}: ${formatDecimal(target.amount)} ${target.unit}`;
 }
 
 function PlannedAmount({ value }: { value: NutrientResult }) {
-  const message = value.knownAmount == null ? 'Bekannte Summe nicht berechenbar' : `Bekannte Summe: ${formatDecimal(value.knownAmount)} ${value.unit}`;
-  return (
-    <div className="list-row">
-      <div className="split"><strong>{nutrientLabel(value.nutrientId)}</strong><span className={`status ${value.status === 'complete' ? 'status-success' : 'status-warning'}`}>{value.status === 'complete' ? 'vollständig' : 'Daten unvollständig'}</span></div>
-      <p style={{ margin: '.35rem 0' }}>{message}</p>
-      {value.status !== 'complete' && value.missingReasons.length > 0 && <p className="help">Fehlt: {value.missingReasons.join('; ')}</p>}
-    </div>
-  );
+  return <article className="list-row stack">
+    <h4>{nutrientLabel(value.nutrientId)}</h4>
+    <p>{value.status === 'complete' ? 'Vollständig berechenbar' : 'Datenlücke'} · Bekannte {value.status === 'complete' ? 'Summe' : 'Teilsumme'}: {formatDecimal(value.knownAmount)} {value.unit}</p>
+    {value.status !== 'complete' && <p className="help">{uncertainty(value.missingReasons)}</p>}
+    <p className="help">Exakter bekannter Wert: {value.knownAmount ?? 'unbekannt'} {value.unit} · Berechnung: {value.calculationVersion}</p>
+    {value.missingReasons.length > 0 && <ul>{value.missingReasons.map((reason) => <li key={reason}><code>{reason}</code></li>)}</ul>}
+    <p className="help">Quellversionen: {value.sourceVersionIds.join(', ') || 'keine'}</p>
+    {value.contributions.length > 0 && <ul className="list-reset">{value.contributions.map((source, index) => <li className="list-row" key={`${source.ingredientId}-${index}`}>
+      <p>Zutat {source.ingredientId} · {SOURCE_STATUS[source.status] ?? source.status} · {formatDecimal(source.amount)} {source.unit}</p>
+      <p className="help">Lebensmittelversion: {source.foodVersionId ?? 'nicht zugeordnet'}{source.rawMarker != null ? ` · Originalmarker: ${source.rawMarker}` : ''}{source.sourceMethod ? ` · Methode: ${source.sourceMethod}` : ''}{source.sourceReference ? ` · Referenz: ${source.sourceReference}` : ''}{source.mappingVersion ? ` · Zuordnung: ${source.mappingVersion}` : ''}</p>
+    </li>)}</ul>}
+  </article>;
 }
 
 function DayTargetRow({ comparison, nutrient }: { comparison: TargetComparison; nutrient?: NutrientResult }) {
-  const amount = nutrient?.knownAmount == null ? 'unbekannt' : `${formatDecimal(nutrient.knownAmount)} ${nutrient.unit}`;
-  const percent = nutrient?.status === 'complete' ? percentage(comparison.fractionOfPoint) : null;
-  const width = percent ? Math.min(100, Math.max(0, Number(comparison.fractionOfPoint) * 100)) : 0;
-  return (
-    <div className="list-row">
-      <div className="split"><strong>{nutrientLabel(comparison.nutrientId)}</strong><span>{amount}</span></div>
-      <p className="help">{targetText(comparison)}</p>
-      {comparison.target.isImportedUnverified && <p className="alert alert-warning">Unverifizierte Importangabe oder daraus abgeleitetes Ziel. Dieser Vergleich nutzt deinen gewählten Planungswert, keine geprüfte Bedarfsempfehlung.</p>}
-      {percent && <><div className="progress" role="progressbar" aria-label={`${nutrientLabel(comparison.nutrientId)} im Verhältnis zum gewählten Tagesziel`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, Math.round(width)))}><span style={{ width: `${width}%` }} /></div><p className="help">{percent} des gewählten Tagesziels</p></>}
-      {nutrient && nutrient.status !== 'complete' && <p className="help">Daten unvollständig: {nutrient.missingReasons.join('; ') || 'Mindestens ein Wert fehlt.'} Es wird keine vollständige Zielerfüllung angezeigt.</p>}
-    </div>
-  );
+  return <div className="list-row">
+    <div className="split"><strong>{nutrientLabel(comparison.nutrientId)}</strong><span>{formatDecimal(comparison.plannedAmount)} {comparison.plannedUnit}</span></div>
+    <p className="help">{targetText(comparison)} · {comparison.available ? RELATIONS[comparison.relation ?? ''] ?? 'vergleichbar' : comparison.reason === 'plan_incomplete' ? 'Vergleich offen: Planung und Zuteilungen prüfen.' : 'Vergleich offen: Quellwerte oder Einheiten unvollständig.'}</p>
+    {!comparison.available && nutrient?.status !== 'complete' && <p className="help">{uncertainty(nutrient?.missingReasons ?? [])}</p>}
+    {comparison.target.unit === 'energy_percent' && <p className="help">Dieses Referenzziel bleibt in E%; ohne ausdrücklich gewählte Planungsenergie ist kein Grammvergleich verfügbar.</p>}
+    {comparison.available && comparison.fractionOfPoint != null && <p>{formatDecimal(new Decimal(comparison.fractionOfPoint).times(100).toFixed(2), 0)} % des gewählten Tagesziels</p>}
+    {comparison.target.isImportedUnverified && <p className="help">Unverifizierte Importangabe oder daraus abgeleitetes Ziel; keine geprüfte Bedarfsempfehlung.</p>}
+  </div>;
 }
+
 function weeklyPointComparison(week: PersonWeekResult, nutrientId: string): { percent: string; includedDays: number; isImportedUnverified: boolean } | null {
   let total = new Decimal(0);
   let includedDays = 0;
   let isImportedUnverified = false;
   for (const day of week.days) {
-    if (day.status !== 'complete' || !day.planComplete) continue;
+    if (!day.planComplete || day.entries.length === 0) continue;
     const comparison = day.targetComparisons.find((item) => item.nutrientId === nutrientId && item.available && item.target.type === 'point' && item.fractionOfPoint != null);
     if (!comparison || comparison.fractionOfPoint == null) continue;
     total = total.plus(comparison.fractionOfPoint);
@@ -64,52 +68,50 @@ function weeklyPointComparison(week: PersonWeekResult, nutrientId: string): { pe
     isImportedUnverified ||= comparison.target.isImportedUnverified === true;
   }
   if (!includedDays) return null;
-  const mean = total.dividedBy(includedDays).mul(100);
-  return { percent: `${formatDecimal(mean.toFixed(2), 0)} %`, includedDays, isImportedUnverified };
+  return { percent: `${formatDecimal(total.dividedBy(includedDays).mul(100).toFixed(2), 0)} %`, includedDays, isImportedUnverified };
 }
 
-function WeekNutrition({ week, hideEnergy }: { week: PersonWeekResult; hideEnergy: boolean }) {
-  const summaries = week.nutrientSummaries.filter((summary) => !hideEnergy || !isEnergyValue(summary));
-  return (
-    <div className="card card-flat stack">
-      <h3>Wochendurchschnitt je einbezogenem Tag</h3>
-      <p className="help">Nur Tage mit verwertbaren geplanten Werten zählen. Dies ist eine Planungsansicht, keine Verzehr- oder Diagnoseaussage.</p>
-      <ul className="list-reset">
-        {summaries.map((summary) => {
-          const comparison = weeklyPointComparison(week, summary.nutrientId);
-          return <li className="list-row" key={summary.nutrientId}>
-            <div className="split"><strong>{nutrientLabel(summary.nutrientId)}</strong><span>{summary.averagePerIncludedDay == null ? 'unbekannt' : `${formatDecimal(summary.averagePerIncludedDay)} ${summary.unit}`}</span></div>
-            <p className="help">{summary.status === 'complete' ? 'Vollständige Werte' : `Daten ${summary.status}; ${summary.includedDayCount} Tage einbezogen, ${summary.excludedDayCount} ausgeschlossen`}</p>
-            {comparison && <p className="help">Durchschnittlich {comparison.percent} des jeweiligen gewählten Tagesziels an {comparison.includedDays} vollständigen Plantagen.</p>}
-            {comparison?.isImportedUnverified && <p className="alert alert-warning">Mindestens ein einbezogenes Ziel stammt aus einem unverifizierten Import oder wurde daraus abgeleitet. Der Durchschnitt ist keine geprüfte Bedarfsempfehlung.</p>}
-          </li>;
-        })}
-        {!summaries.length && <li className="help">Für diesen Zeitraum gibt es noch keine Nährwerte.</li>}
-      </ul>
-    </div>
-  );
+function WeekNutrition({ week, nutrientIds }: { week: PersonWeekResult; nutrientIds: string[] }) {
+  return <section className="card card-flat stack"><h3>Wochendurchschnitt je einbezogenem Tag</h3>
+    <p className="help">Nur abgeschlossene Planung und vollständige Beiträge für den jeweiligen Nährstoff zählen. Andere Quellkomponenten sperren diesen Durchschnitt nicht.</p>
+    <ul className="list-reset">{nutrientIds.map((id) => {
+      const summary = week.nutrientSummaries.find((row) => row.nutrientId === id);
+      const comparison = weeklyPointComparison(week, id);
+      return <li className="list-row" key={id}>
+        <div className="split"><strong>{nutrientLabel(id)}</strong><span>{formatDecimal(summary?.averagePerIncludedDay, id === 'energy_kcal' ? 0 : 2)} {summary?.unit ?? (id === 'energy_kcal' ? 'kcal' : '')}</span></div>
+        <p className="help">{summary?.includedDayCount ?? 0} Tage einbezogen, {summary?.excludedDayCount ?? 7} ausgeschlossen.</p>
+        {comparison && <p className="help">Durchschnittlich {comparison.percent} des jeweiligen gewählten Tagesziels an {comparison.includedDays} einbezogenen Tagen.</p>}
+        {comparison?.isImportedUnverified && <p className="help">Mindestens ein Ziel stammt aus einem unverifizierten Import oder wurde daraus abgeleitet; keine geprüfte Bedarfsempfehlung.</p>}
+      </li>;
+    })}</ul>
+  </section>;
 }
 
+/** Fixed headline nutrients; full per-source diagnostics remain keyboard accessible. */
 export function DayNutritionCard({ day, week, hideEnergy = false }: { day: PersonDayResult; week?: PersonWeekResult; hideEnergy?: boolean }) {
-  const visibleTotals = day.totals.filter((nutrient) => !hideEnergy || !isEnergyValue(nutrient));
-  const totalMap: Record<string, NutrientResult> = Object.create(null);
-  for (const nutrient of visibleTotals) totalMap[nutrient.nutrientId] = nutrient;
-  const comparisons = day.targetComparisons.filter((item) => !hideEnergy || !/energy|kcal|kilojoule/i.test(item.nutrientId));
-  const isEmpty = day.status === 'empty';
-  return (
-    <section className="card stack" aria-labelledby="day-nutrition-heading">
-      <div className="split"><div><p className="eyebrow">Persönliche Planung</p><h2 id="day-nutrition-heading">{formatLocalDate(day.date)} · bekannte Werte</h2></div><span className={`status ${day.planComplete ? 'status-success' : 'status-warning'}`}>{day.planComplete ? 'Tagesplan als vollständig markiert' : 'Tagesplan unvollständig'}</span></div>
-      {isEmpty && <p className="alert alert-info">Für diesen Tag ist nichts geplant. Das bedeutet nicht, dass du nichts gegessen hast; der Tag wird nicht als Nullaufnahme bewertet.</p>}
-      {!isEmpty && day.missingReasons.length > 0 && <div className="alert alert-warning"><strong>Der Tagesvergleich ist unvollständig.</strong><ul>{day.missingReasons.map((reason) => <li key={reason}>{reason === 'recipe_yield_unknown' ? 'Die Basisportionen eines geplanten Rezepts sind unbekannt. Sein persönlicher Nährwertanteil kann deshalb nicht berechnet werden.' : reason}</li>)}</ul><p>Bekannte Teilsummen bleiben sichtbar; fehlende Mahlzeitenanteile werden nicht als null angenommen.</p></div>}
-      {visibleTotals.length > 0 && <div className="metric-grid">{visibleTotals.filter((nutrient) => nutrient.status === 'complete').slice(0, 4).map((nutrient) => <div className="metric" key={nutrient.nutrientId}><span className="metric-label">{nutrientLabel(nutrient.nutrientId)}</span><span className="metric-value">{formatDecimal(nutrient.knownAmount)} <small>{nutrient.unit}</small></span></div>)}</div>}
-      {visibleTotals.some((nutrient) => nutrient.status !== 'complete') && <div className="alert alert-warning"><strong>Bekannte Teilsummen – Daten unvollständig</strong><ul>{visibleTotals.filter((nutrient) => nutrient.status !== 'complete').map((nutrient) => <li key={nutrient.nutrientId}>{nutrientLabel(nutrient.nutrientId)}: {nutrient.knownAmount == null ? 'Wert unbekannt' : `${formatDecimal(nutrient.knownAmount)} ${nutrient.unit}`} · {nutrient.missingReasons.join('; ') || 'mindestens ein Quellwert fehlt'}</li>)}</ul></div>}
-      {comparisons.length > 0 && <div className="stack"><h3>Vergleich mit deinen gewählten Zielen</h3>{comparisons.map((comparison) => <DayTargetRow key={comparison.nutrientId} comparison={comparison} nutrient={totalMap[comparison.nutrientId]} />)}</div>}
-      <details>
-        <summary className="button button-quiet">Alle vorhandenen Nährwerte und Datenlücken</summary>
-        <div className="stack">{visibleTotals.length ? visibleTotals.map((nutrient) => <PlannedAmount key={nutrient.nutrientId} value={nutrient} />) : <p className="help">Für diese Person liegen noch keine auswertbaren Mahlzeitenwerte vor.</p>}</div>
-      </details>
-      {week && <><div className="alert alert-info"><strong>Woche {formatLocalDate(week.startDate)}–{formatLocalDate(week.endDate)}:</strong> {week.completeDayCount} vollständige Tage, {week.plannedDayCount} Tage mit Plan, {week.excludedDayCount} Tage ohne verwertbare Werte. Leere Tage werden nicht als Null gemittelt.</div><WeekNutrition week={week} hideEnergy={hideEnergy} /></>}
-      {!day.planComplete && <p className="help">„Tagesplan vollständig“ bestätigt nur, dass du alle geplanten Slots erfasst hast. Es ist keine Verzehrsbestätigung.</p>}
-    </section>
-  );
+  const visibleTotals = day.totals.filter((row) => !hideEnergy || !isEnergyValue(row));
+  const comparisons = day.targetComparisons.filter((row) => !hideEnergy || !/energy|kcal|kilojoule/i.test(row.nutrientId));
+  const headlineIds = HEADLINE_NUTRIENTS.filter((id) => !hideEnergy || id !== 'energy_kcal');
+  const headlineRows = headlineIds.map((id) => visibleTotals.find((row) => row.nutrientId === id));
+  return <div className="stack">
+    <p className="help">{day.entries.length === 0 ? 'Für diese Person gibt es keine zugeteilten Mahlzeiten. Das ist keine Nullaufnahme.' : day.planComplete ? 'Haushaltsplan abgeschlossen. Das bestätigt die erfassten Termine, nicht die persönliche Nährstoffabdeckung.' : 'Haushaltsplan noch offen. Prüfe die Mahlzeiten und schließe die Planung ab, bevor du Tagesziele vergleichst.'}</p>
+    {day.missingReasons.length > 0 && <p className="alert alert-warning">{uncertainty(day.missingReasons)} Bekannte Teilsummen bleiben sichtbar.</p>}
+    <div className="metric-grid">{headlineIds.map((id, index) => {
+      const nutrient = headlineRows[index];
+      return <div className="metric" key={id}>
+        <span className="metric-label">{nutrientLabel(id)}</span>
+        <span className="metric-value">{formatDecimal(nutrient?.knownAmount, id === 'energy_kcal' ? 0 : 2)} <small>{nutrient?.unit ?? (id === 'energy_kcal' ? 'kcal' : 'g')}</small></span>
+        <span className="help">{nutrient?.status === 'complete' ? 'Alle Beiträge berechenbar' : nutrient?.knownAmount != null ? 'Bekannte Teilsumme' : 'Quellwert offen'}</span>
+      </div>;
+    })}</div>
+    {day.entries.length > 0 && headlineRows.some((row) => !row || row.status !== 'complete') && <p className="help">Datenlücken betreffen nur den jeweiligen Nährstoff. <Link href={`/plan?start=${day.date}&personId=${encodeURIComponent(day.personId)}`}>Mahlzeiten und Zuteilungen prüfen</Link>; Originalwerte stehen in den Quelldetails unten.</p>}
+    {comparisons.length > 0 && <section className="stack"><h3>Vergleich mit deinen gewählten Zielen</h3>{comparisons.map((comparison) => <DayTargetRow key={comparison.nutrientId} comparison={comparison} nutrient={visibleTotals.find((row) => row.nutrientId === comparison.nutrientId)} />)}</section>}
+    {week && <><p className="help">Woche {formatLocalDate(week.startDate)}–{formatLocalDate(week.endDate)}: {week.scheduleCompleteDayCount} abgeschlossene Haushaltsplantage mit persönlichen Zuteilungen · {week.plannedDayCount} Tage mit Zuteilung. Nährstoffabdeckung ist davon unabhängig. Leere Tage werden nicht als null gemittelt.</p><WeekNutrition week={week} nutrientIds={headlineIds} /></>}
+    <details><summary>Alle Nährwerte, Datenlücken und Originalquellen ({visibleTotals.length})</summary>
+      <div className="stack">{visibleTotals.map((nutrient) => <PlannedAmount key={nutrient.nutrientId} value={nutrient} />)}
+        {!visibleTotals.length && <p className="help">Keine berechenbaren Quellwerte für diese Person. Prüfe persönliche Zuteilungen und die Rezeptbasis.</p>}
+        {week && <><WeekNutrition week={week} nutrientIds={week.nutrientSummaries.filter((row) => !hideEnergy || !isEnergyValue(row)).map((row) => row.nutrientId)} /><ul className="list-reset">{week.nutrientSummaries.filter((row) => !hideEnergy || !isEnergyValue(row)).map((row) => <li className="list-row" key={row.nutrientId}>{nutrientLabel(row.nutrientId)} · bekannte Wochensumme (einschließlich Teilsummen): {formatDecimal(row.knownTotal)} {row.unit}</li>)}</ul></>}
+      </div>
+    </details>
+  </div>;
 }

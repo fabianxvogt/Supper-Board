@@ -318,6 +318,9 @@ export interface PersonWeekResult {
   endDate: LocalDate;
   days: PersonDayResult[];
   plannedDayCount: number;
+  /** Nonempty days whose schedule is confirmed, independently of nutrient coverage. */
+  scheduleCompleteDayCount: number;
+  /** Diagnostic count of days with complete coverage across all supplied nutrients. */
   completeDayCount: number;
   excludedDayCount: number;
   nutrientSummaries: NutrientWeekSummary[];

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { projectShopping } from '@/domain/shopping';
 import { addLocalDays, daysBetweenLocalDates } from '@/domain/dates';
+import { domainDecimal, type DomainDecimal } from '@/domain/amounts';
 import type {
   FoodVersion,
   NutrientBasis,
@@ -180,6 +181,7 @@ export interface RecipeListItem {
 }
 export interface PlanEntry {
   id: string;
+  planId: string;
   date: string;
   slot: string;
   kind: 'recipe_batch' | 'direct_food' | 'flex';
@@ -199,6 +201,8 @@ export interface PlannedBatch {
   recipeVersionId: string;
   cookDate: string;
   cookPortions: string;
+  /** All nonarchived meal allocations for this batch, not just this window. */
+  allocatedPortions: string;
   finalWeightG: string | null;
   completed: boolean;
   inventoryReviewRequired: boolean;
@@ -207,8 +211,7 @@ export interface PlannedBatch {
 }
 export interface PlanSnapshot {
   householdId: string;
-  plan: { id: string; title: string; startDate: string; endDate: string; status: string; revision: number } | null;
-  planRevision: number;
+  plans: Array<{ id: string; title: string; startDate: string; endDate: string; status: string; revision: number }>;
   householdPlanRevision: number;
   entries: PlanEntry[];
   batches: PlannedBatch[];
@@ -217,7 +220,7 @@ export interface PlanSnapshot {
   checklistItems: Array<{ batchId: string; itemKind: 'ingredient' | 'step'; itemKey: string; checked: boolean; revision: number }>;
   feedback: Array<{ id: string; recipeId: string | null; recipeVersionId: string | null; entryId: string | null; personId: string | null; rating: number | null; note: string | null; wish: string | null; revision: number }>;
   drafts: Array<{ id: string; planId: string; title: string; status: string; revision: number; entries: Array<Json & { allocations: Array<{ personId: string; portions: string }> }> }>;
-  changes: Array<{ id: string; changeKind: string; affectedEntryIds: string[]; before: Json; after: Json; resultingRevision: number; undoneAt: string | null }>;
+  changes: Array<{ id: string; planId: string; changeKind: string; affectedEntryIds: string[]; before: Json; after: Json; resultingRevision: number; undoneAt: string | null }>;
   completeDates: string[];
 }
 export interface InventoryItem {
@@ -666,19 +669,37 @@ export function createRepository(supabase: SupabaseClient) {
       if (dateSpan(input.from, input.to) < 1) throw new RepositoryError('VALIDATION', ERROR_MESSAGES.VALIDATION);
       const household = await readRow(db.from('households').select('plan_revision').eq('id', input.householdId).maybeSingle());
       if (!household) throw new RepositoryError('NOT_FOUND', ERROR_MESSAGES.NOT_FOUND);
-      const plans = await readRows(db.from('plans').select('id,household_id,title,start_date,end_date,status,revision').eq('household_id', input.householdId).eq('status', 'active').lte('start_date', input.to).gte('end_date', input.from).order('created_at', { ascending: false }).limit(1));
-      const planRow = plans[0] ?? null;
-      if (!planRow) return { householdId: input.householdId, plan: null, planRevision: 0, householdPlanRevision: number(household.plan_revision), entries: [], batches: [], allocations: [], reminders: [], checklistItems: [], feedback: [], drafts: [], changes: [], completeDates: [] };
-      const entryRows = await readRows(db.from('meal_entries').select('id,household_id,plan_id,entry_date,slot,entry_kind,batch_id,food_version_id,label,quantity_g::text,provided,inventory_review_required,archived_at,revision').eq('household_id', input.householdId).eq('plan_id', planRow.id).is('archived_at', null).gte('entry_date', input.from).lte('entry_date', input.to).order('entry_date').order('slot').order('id'));
+      // Read every active plan: older overlaps remain history, and an entry can
+      // lie outside its plan's original dates (for example a leftover).
+      const activePlans = await readAllRows((from, to) => db.from('plans').select('id,household_id,title,start_date,end_date,status,revision').eq('household_id', input.householdId).eq('status', 'active').order('start_date').order('id').range(from, to));
+      const activePlanIds = activePlans.map((item) => text(item.id));
+      const entryRows = activePlanIds.length ? await readAllRows((from, to) => db.from('meal_entries').select('id,household_id,plan_id,entry_date,slot,entry_kind,batch_id,food_version_id,label,quantity_g::text,provided,inventory_review_required,archived_at,revision').eq('household_id', input.householdId).in('plan_id', activePlanIds).is('archived_at', null).gte('entry_date', input.from).lte('entry_date', input.to).order('entry_date').order('slot').order('id').range(from, to)) : [];
       const batchIds = unique(entryRows.map((item) => nullableText(item.batch_id) ?? '').filter(Boolean));
       const entryIds = entryRows.map((item) => text(item.id));
-      const [batchRows, allocationRows, reminderRows, feedbackRows, draftRows, changeRows, completeRows] = await Promise.all([
-        batchIds.length ? readRows(db.from('planned_batches').select('id,plan_id,recipe_version_id,cook_date,cook_portions::text,final_weight_g::text,completed,inventory_review_required,revision').in('id', batchIds).eq('household_id', input.householdId)) : Promise.resolve([]),
-        entryIds.length ? readRows(db.from('meal_allocations').select('id,entry_id,person_id,portions::text,revision').in('entry_id', entryIds).eq('household_id', input.householdId).order('created_at')) : Promise.resolve([]),
-        (entryIds.length || batchIds.length) ? readRows(db.from('prep_reminders').select('*').eq('household_id', input.householdId).or(`${entryIds.length ? `entry_id.in.(${entryIds.join(',')})` : 'entry_id.is.null'}${batchIds.length ? `,batch_id.in.(${batchIds.join(',')})` : ''}`).order('reminder_date')) : Promise.resolve([]),
-        entryIds.length ? readRows(db.from('feedback').select('*').eq('household_id', input.householdId).in('meal_entry_id', entryIds).order('created_at', { ascending: false })) : Promise.resolve([]),
-        readRows(db.from('plan_drafts').select('*').eq('household_id', input.householdId).eq('plan_id', planRow.id).order('created_at', { ascending: false })),
-        readRows(db.from('plan_changes').select('*').eq('household_id', input.householdId).eq('plan_id', planRow.id).order('created_at', { ascending: false }).limit(100)),
+      const batchRows = activePlanIds.length ? await readAllRows((from, to) => db.from('planned_batches').select('id,plan_id,recipe_version_id,cook_date,cook_portions::text,final_weight_g::text,completed,inventory_review_required,revision').eq('household_id', input.householdId).in('plan_id', activePlanIds).or(`${batchIds.length ? `id.in.(${batchIds.join(',')}),` : ''}and(cook_date.gte.${input.from},cook_date.lte.${input.to})`).order('cook_date').order('id').range(from, to)) : [];
+      const relevantPlanIds = new Set([
+        ...entryRows.map((item) => text(item.plan_id)),
+        ...batchRows.map((item) => text(item.plan_id)),
+        ...activePlans.filter((item) => text(item.start_date) <= input.to && text(item.end_date) >= input.from).map((item) => text(item.id)),
+      ]);
+      const plans = activePlans.filter((item) => relevantPlanIds.has(text(item.id)));
+      const planIds = plans.map((item) => text(item.id));
+      const allBatchIds = batchRows.map((item) => text(item.id));
+      const batchEntryRows = allBatchIds.length ? await readAllRows((from, to) => db.from('meal_entries').select('id,batch_id').eq('household_id', input.householdId).in('batch_id', allBatchIds).is('archived_at', null).order('id').range(from, to)) : [];
+      const batchEntryIds = batchEntryRows.map((item) => text(item.id));
+      const batchAllocationRows = batchEntryIds.length ? await readAllRows((from, to) => db.from('meal_allocations').select('id,entry_id,portions::text').eq('household_id', input.householdId).in('entry_id', batchEntryIds).order('id').range(from, to)) : [];
+      const batchByEntryId = new Map(batchEntryRows.map((item) => [text(item.id), text(item.batch_id)]));
+      const allocatedByBatch = new Map<string, DomainDecimal>();
+      for (const allocation of batchAllocationRows) {
+        const batchId = batchByEntryId.get(text(allocation.entry_id));
+        if (batchId) allocatedByBatch.set(batchId, (allocatedByBatch.get(batchId) ?? domainDecimal('0')).plus(text(allocation.portions)));
+      }
+      const [allocationRows, reminderRows, feedbackRows, draftRows, changeRows, completeRows] = await Promise.all([
+        entryIds.length ? readAllRows((from, to) => db.from('meal_allocations').select('id,entry_id,person_id,portions::text,revision').in('entry_id', entryIds).eq('household_id', input.householdId).order('created_at').order('id').range(from, to)) : Promise.resolve([]),
+        readAllRows((from, to) => db.from('prep_reminders').select('*').eq('household_id', input.householdId).or(`and(entry_id.is.null,batch_id.is.null)${entryIds.length ? `,entry_id.in.(${entryIds.join(',')})` : ''}${allBatchIds.length ? `,batch_id.in.(${allBatchIds.join(',')})` : ''}`).order('reminder_date').order('id').range(from, to)),
+        entryIds.length ? readAllRows((from, to) => db.from('feedback').select('*').eq('household_id', input.householdId).in('meal_entry_id', entryIds).order('created_at', { ascending: false }).order('id').range(from, to)) : Promise.resolve([]),
+        planIds.length ? readAllRows((from, to) => db.from('plan_drafts').select('*').eq('household_id', input.householdId).in('plan_id', planIds).order('created_at', { ascending: false }).order('id').range(from, to)) : Promise.resolve([]),
+        planIds.length ? readAllRows((from, to) => db.from('plan_changes').select('*').eq('household_id', input.householdId).in('plan_id', planIds).order('created_at', { ascending: false }).order('id').range(from, to)) : Promise.resolve([]),
         readRows(db.from('plan_day_completeness').select('complete_on').eq('household_id', input.householdId).eq('complete', true).gte('complete_on', input.from).lte('complete_on', input.to)),
       ]);
       const recipeVersionIds = unique(rows(batchRows).map((item) => text(item.recipe_version_id)));
@@ -686,7 +707,7 @@ export function createRepository(supabase: SupabaseClient) {
       const [recipes, directFoods, checklistRows] = await Promise.all([
         Promise.all(recipeVersionIds.map(async (id) => [id, await recipeDetails(id)] as const)),
         Promise.all(directFoodIds.map(async (id) => [id, await foodDetails(id)] as const)),
-        batchIds.length ? readRows(db.from('cooking_checklist_items').select('*').eq('household_id', input.householdId).in('batch_id', batchIds).order('item_kind').order('item_key')) : Promise.resolve([]),
+        allBatchIds.length ? readRows(db.from('cooking_checklist_items').select('*').eq('household_id', input.householdId).in('batch_id', allBatchIds).order('item_kind').order('item_key')) : Promise.resolve([]),
       ]);
       const recipesById: Record<string, RecipeDetails> = Object.fromEntries(recipes);
       const foodsById: Record<string, FoodDetails> = Object.fromEntries(directFoods);
@@ -698,17 +719,17 @@ export function createRepository(supabase: SupabaseClient) {
         id: text(draft.id), planId: text(draft.plan_id), title: text(draft.title), status: text(draft.status), revision: number(draft.revision, 1),
         entries: draftEntriesRaw.filter((entry) => entry.draft_id === draft.id).map((entry) => ({ ...entry, id: text(entry.id), date: text(entry.entry_date), slot: text(entry.slot), kind: text(entry.entry_kind), recipeVersionId: nullableText(entry.recipe_version_id), foodVersionId: nullableText(entry.food_version_id), cookPortions: nullableText(entry.recipe_cook_portions), replacesEntryId: nullableText(entry.replaces_entry_id), quantityG: nullableText(entry.quantity_g), replacementRequired: bool(entry.replacement_required), replacementResolved: bool(entry.replacement_resolved), allocations: draftAllocRaw.filter((allocation) => allocation.draft_entry_id === entry.id).map((allocation) => ({ personId: text(allocation.person_id), portions: text(allocation.portions) })) })),
       }));
-      const entries: PlanEntry[] = entryRows.map((item) => ({ id: text(item.id), date: text(item.entry_date), slot: text(item.slot), kind: text(item.entry_kind) as PlanEntry['kind'], batchId: nullableText(item.batch_id), foodVersionId: nullableText(item.food_version_id), food: item.food_version_id ? foodsById[text(item.food_version_id)] ?? null : null, label: nullableText(item.label), quantityG: nullableText(item.quantity_g), provided: bool(item.provided), inventoryReviewRequired: bool(item.inventory_review_required), archivedAt: nullableText(item.archived_at), revision: number(item.revision, 1) }));
-      const batches: PlannedBatch[] = rows(batchRows).map((item) => ({ id: text(item.id), planId: text(item.plan_id), recipeVersionId: text(item.recipe_version_id), cookDate: text(item.cook_date), cookPortions: text(item.cook_portions), finalWeightG: nullableText(item.final_weight_g), completed: bool(item.completed), inventoryReviewRequired: bool(item.inventory_review_required), revision: number(item.revision, 1), recipe: recipesById[text(item.recipe_version_id)] ?? null }));
+      const entries: PlanEntry[] = entryRows.map((item) => ({ id: text(item.id), planId: text(item.plan_id), date: text(item.entry_date), slot: text(item.slot), kind: text(item.entry_kind) as PlanEntry['kind'], batchId: nullableText(item.batch_id), foodVersionId: nullableText(item.food_version_id), food: item.food_version_id ? foodsById[text(item.food_version_id)] ?? null : null, label: nullableText(item.label), quantityG: nullableText(item.quantity_g), provided: bool(item.provided), inventoryReviewRequired: bool(item.inventory_review_required), archivedAt: nullableText(item.archived_at), revision: number(item.revision, 1) }));
+      const batches: PlannedBatch[] = rows(batchRows).map((item) => ({ id: text(item.id), planId: text(item.plan_id), recipeVersionId: text(item.recipe_version_id), cookDate: text(item.cook_date), cookPortions: text(item.cook_portions), allocatedPortions: allocatedByBatch.get(text(item.id))?.toString() ?? '0', finalWeightG: nullableText(item.final_weight_g), completed: bool(item.completed), inventoryReviewRequired: bool(item.inventory_review_required), revision: number(item.revision, 1), recipe: recipesById[text(item.recipe_version_id)] ?? null }));
       return {
         householdId: input.householdId,
-        plan: { id: text(planRow.id), title: text(planRow.title), startDate: text(planRow.start_date), endDate: text(planRow.end_date), status: text(planRow.status), revision: number(planRow.revision, 1) },
-        planRevision: number(planRow.revision, 1), householdPlanRevision: number(household.plan_revision), entries, batches,
+        plans: plans.map((item) => ({ id: text(item.id), title: text(item.title), startDate: text(item.start_date), endDate: text(item.end_date), status: text(item.status), revision: number(item.revision, 1) })),
+        householdPlanRevision: number(household.plan_revision), entries, batches,
         allocations: rows(allocationRows).map((item) => ({ id: text(item.id), entryId: text(item.entry_id), personId: text(item.person_id), portions: text(item.portions), revision: number(item.revision, 1) })),
         reminders: rows(reminderRows).map((item) => ({ id: text(item.id), entryId: nullableText(item.entry_id), batchId: nullableText(item.batch_id), date: text(item.reminder_date), text: text(item.text), done: bool(item.done), revision: number(item.revision, 1) })),
         checklistItems: rows(checklistRows).map((item) => ({ batchId: text(item.batch_id), itemKind: text(item.item_kind) as 'ingredient' | 'step', itemKey: text(item.item_key), checked: bool(item.checked), revision: number(item.revision, 1) })),
         feedback: rows(feedbackRows).map((item) => ({ id: text(item.id), recipeId: nullableText(item.recipe_id), recipeVersionId: nullableText(item.recipe_version_id), entryId: nullableText(item.meal_entry_id), personId: nullableText(item.person_id), rating: item.rating == null ? null : number(item.rating), note: nullableText(item.note), wish: nullableText(item.wish), revision: number(item.revision, 1) })),
-        drafts, changes: rows(changeRows).map((item) => ({ id: text(item.id), changeKind: text(item.change_kind), affectedEntryIds: asArray(item.affected_entry_ids).map((id) => text(id)), before: asJson(item.before_dates), after: asJson(item.after_dates), resultingRevision: number(item.resulting_revision), undoneAt: nullableText(item.undone_at) })),
+        drafts, changes: rows(changeRows).map((item) => ({ id: text(item.id), planId: text(item.plan_id), changeKind: text(item.change_kind), affectedEntryIds: asArray(item.affected_entry_ids).map((id) => text(id)), before: asJson(item.before_dates), after: asJson(item.after_dates), resultingRevision: number(item.resulting_revision), undoneAt: nullableText(item.undone_at) })),
         completeDates: rows(completeRows).map((item) => text(item.complete_on)),
       };
     },

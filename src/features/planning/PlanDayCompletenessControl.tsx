@@ -46,8 +46,8 @@ export function PlanDayCompletenessControl({
       <input type="hidden" name="complete" value={String(!isComplete)} />
       <input type="hidden" name="expectedPlanRevision" value={planRevision} />
       <ActionStatus error={state.error} />
-      <p className="help">{isComplete ? 'Du hast bestätigt, dass die Planung für diesen Tag vollständig ist.' : 'Nährstoffvergleiche bleiben offen, bis du die Planung ausdrücklich als vollständig markierst.'}</p>
-      <SubmitButton className="button button-small" disabled={!isComplete && !hasMeals}>{isComplete ? 'Planung wieder öffnen' : 'Planung für diesen Tag abschließen'}</SubmitButton>
+      <p className="help">{isComplete ? 'Der Haushaltsplan ist für diesen Tag abgeschlossen. Persönliche Zuteilungen und Nährstoffdaten werden getrennt geprüft.' : 'Schließe den Haushaltsplan ab, wenn alle Mahlzeiten erfasst sind. Fehlende Zuteilungen oder Quellwerte bleiben trotzdem offen.'}</p>
+      <SubmitButton className="button button-small" disabled={!isComplete && !hasMeals}>{isComplete ? 'Haushaltsplan wieder öffnen' : 'Haushaltsplan für diesen Tag abschließen'}</SubmitButton>
     </form>
   );
 }

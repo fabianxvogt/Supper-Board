@@ -21,6 +21,70 @@ const nutrient = (nutrientId: string, amount: string, unit = 'g'): NutrientResul
 });
 
 describe('person plans, targets, and local dates', () => {
+  it('requires a nutrient value from every planned contribution, regardless of entry order', () => {
+    const entries = [
+      { id: 'protein-meal', nutrients: [nutrient('protein', '20')] },
+      { id: 'fat-only-meal', nutrients: [nutrient('fat', '5')] },
+    ];
+    for (const orderedEntries of [entries, [...entries].reverse()]) {
+      const day = calculatePersonDay({
+        personId: 'person-1', date: '2026-10-07', planComplete: true,
+        entries: orderedEntries,
+        targets: [{ nutrientId: 'protein', unit: 'g', type: 'point', amount: '20', origin: 'manual' }],
+      });
+      expect(day.totals.find((row) => row.nutrientId === 'protein')).toMatchObject({
+        knownAmount: '20', status: 'partial',
+      });
+      expect(day.totals.find((row) => row.nutrientId === 'fat')).toMatchObject({
+        knownAmount: '5', status: 'partial',
+      });
+      expect(day.targetComparisons[0]).toMatchObject({ available: false, relation: 'not_comparable' });
+    }
+  });
+
+  it('averages each nutrient independently of unrelated unmapped source components', () => {
+    const unsupported: NutrientResult = {
+      ...nutrient('unmapped:SOURCE', '1'),
+      knownAmount: null, status: 'unsupported_mapping', missingReasons: ['unsupported_mapping'],
+    };
+    const week = calculatePersonWeek({
+      personId: 'person-1', startDate: '2026-10-07',
+      days: [
+        { personId: 'person-1', date: '2026-10-07', planComplete: true,
+          entries: [{ id: 'meal', nutrients: [nutrient('protein', '20'), unsupported] }],
+          targets: [{ nutrientId: 'protein', unit: 'g', type: 'point', amount: '20', origin: 'manual' }] },
+        { personId: 'person-1', date: '2026-10-08', planComplete: true,
+          entries: [{ id: 'meal', nutrients: [nutrient('protein', '10')] }, { id: 'sparse', nutrients: [nutrient('fat', '5')] }] },
+        { personId: 'person-1', date: '2026-10-09', planComplete: false,
+          entries: [{ id: 'meal', nutrients: [nutrient('protein', '40')] }] },
+        { personId: 'person-1', date: '2026-10-10', planComplete: true, entries: [] },
+      ],
+    });
+    expect(week.scheduleCompleteDayCount).toBe(2);
+    expect(week.days[0].status).toBe('partial');
+    expect(week.days[0].targetComparisons[0]).toMatchObject({ available: true, relation: 'at' });
+    expect(week.nutrientSummaries.find((row) => row.nutrientId === 'protein')).toMatchObject({
+      knownTotal: '70', averagePerIncludedDay: '20', includedDayCount: 1, excludedDayCount: 6,
+    });
+    expect(week.nutrientSummaries.find((row) => row.nutrientId === 'unmapped:SOURCE')).toMatchObject({
+      knownTotal: null, averagePerIncludedDay: null, includedDayCount: 0,
+    });
+  });
+
+  it('distinguishes explicit zero from absent values and empty days', () => {
+    const day = calculatePersonDay({
+      personId: 'person-1', date: '2026-10-07', planComplete: true,
+      entries: [{ id: 'a', nutrients: [nutrient('protein', '0')] }, { id: 'b', nutrients: [nutrient('protein', '0')] }],
+    });
+    expect(day.totals[0]).toMatchObject({ knownAmount: '0', status: 'complete' });
+    const week = calculatePersonWeek({
+      personId: 'person-1', startDate: '2026-10-07',
+      days: [{ personId: 'person-1', date: day.date, planComplete: true, entries: day.entries }],
+    });
+    expect(week.nutrientSummaries[0]).toMatchObject({ averagePerIncludedDay: '0', includedDayCount: 1 });
+    expect(week.days[1].totals).toEqual([]);
+  });
+
   it('F02 and F03 scale two recipe portions and one-and-a-half portions independently', () => {
     const perPortion = nutrient('energy', '137.5', 'kcal');
     const day = calculatePersonDay({

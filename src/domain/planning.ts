@@ -37,6 +37,7 @@ export function calculatePersonDay(input: PersonDayInput): PersonDayResult {
   const entryIds = new Set<string>();
   const entryIssues = new Set<string>();
   const accumulators = new Map<string, NutrientAccumulator>();
+  const entryNutrientIds: Set<string>[] = [];
   for (const entry of input.entries) {
     if (entryIds.has(entry.id)) throw new DomainValidationError(`Duplicate person-day entry id: ${entry.id}.`);
     entryIds.add(entry.id);
@@ -53,12 +54,18 @@ export function calculatePersonDay(input: PersonDayInput): PersonDayResult {
       addNutrient(accumulator, nutrient, scale);
       accumulators.set(nutrient.nutrientId, accumulator);
     }
+    entryNutrientIds.push(nutrientIds);
   }
 
   const totals = [...accumulators.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([nutrientId, accumulator]) => {
     const knownAmount = accumulator.hasAmount ? canonicalDecimal(accumulator.amount) : null;
     const missingReasons = new Set(accumulator.reasons);
     for (const issue of entryIssues) missingReasons.add(issue);
+    input.entries.forEach((entry, index) => {
+      if (entryNutrientIds[index].has(nutrientId)) return;
+      // Empty unresolved entries already carry their actionable day-level reason.
+      if (entry.nutrients.length > 0) missingReasons.add(`nutrient_value_absent:${entry.id}`);
+    });
     const status: NutrientCalculationStatus = accumulator.unsupported
       ? 'unsupported_mapping'
       : missingReasons.size === 0
@@ -123,6 +130,7 @@ export function calculatePersonWeek(input: PersonWeekInput): PersonWeekResult {
   }
   const plannedDayCount = days.filter((day) => day.entries.length > 0).length;
   const completeDayCount = days.filter((day) => day.entries.length > 0 && day.planComplete && day.status === 'complete').length;
+  const scheduleCompleteDayCount = days.filter((day) => day.entries.length > 0 && day.planComplete).length;
   const nutrientIds = new Set(days.flatMap((day) => day.totals.map((nutrient) => nutrient.nutrientId)));
   const nutrientSummaries = [...nutrientIds].sort().map((nutrientId) => summarizeNutrient(days, nutrientId));
 
@@ -132,6 +140,7 @@ export function calculatePersonWeek(input: PersonWeekInput): PersonWeekResult {
     endDate: addLocalDays(startDate, 6),
     days,
     plannedDayCount,
+    scheduleCompleteDayCount,
     completeDayCount,
     excludedDayCount: 7 - completeDayCount,
     nutrientSummaries,
@@ -324,7 +333,7 @@ function summarizeNutrient(days: PersonDayResult[], nutrientId: string): Nutrien
       : convertMassUnit(domainDecimal(nutrient.knownAmount), nutrient.unit, unit);
     if (converted === null) continue;
     knownRows.push(converted);
-    if (day.planComplete && day.status === 'complete' && nutrient.status === 'complete') completeRows.push(converted);
+    if (day.planComplete && nutrient.status === 'complete') completeRows.push(converted);
   }
   const includedDayCount = completeRows.length;
   const knownTotal = knownRows.length === 0 ? null : canonicalDecimal(knownRows.reduce((total, amount) => total.plus(amount), domainDecimal('0')));

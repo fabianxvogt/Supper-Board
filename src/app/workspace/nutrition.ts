@@ -30,12 +30,11 @@ function mealNutrients(snapshot: PlanSnapshot, personId: string, date: string) {
       const totalShares = snapshot.allocations.reduce((total, item) => item.entryId === entry.id ? total.plus(domainDecimal(item.portions)) : total, domainDecimal('0'));
       return [{ id: entry.id, nutrients: calculated.total.nutrients, scale: domainDecimal(allocation.portions).div(totalShares).toString(), issues: calculated.issues }];
     }
-    if (entry.kind === 'flex' && allocation) return [{ id: entry.id, nutrients: [], scale: allocation.portions, issues: ['flexible_meal_has_no_nutrient_mapping'] }];
+    if (allocation) return [{ id: entry.id, nutrients: [], scale: allocation.portions, issues: [entry.kind === 'flex' ? 'flexible_meal_has_no_nutrient_mapping' : 'meal_source_unavailable'] }];
     return [];
   });
   return entries;
 }
-
 
 export function projectPersonDay({ snapshot, personId, date, targetVersions }: { snapshot: PlanSnapshot; personId: string; date: string; targetVersions: NutrientTargetVersion[] }): PersonDayResult {
   return calculatePersonDay({
