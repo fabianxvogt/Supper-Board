@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { randomUUID } from 'node:crypto';
 import { getWorkspaceContext } from '@/app/workspace/context';
 import { applyDataImportAction, exportDataAction, previewDataImportAction } from '@/app/actions/data';
@@ -12,6 +13,10 @@ export default async function DataPage() {
   return (
     <main className="page-wrap">
       <header className="page-heading"><div><p className="eyebrow">Einstellungen</p><h1>Daten & Privatsphäre</h1><p>Eigene private Profile bleiben von gemeinsamen Haushaltsdaten getrennt. Exporte und Importe erfolgen nur auf deine ausdrückliche Auswahl.</p></div></header>
+      <nav className="button-row" aria-label="Einstellungen">
+        <Link className="button button-small" href="/profile">Mein privates Profil & Freigaben</Link>
+        <Link className="button button-small" href="/household">Haushalt & Personen</Link>
+      </nav>
       <DataPrivacyWorkspace
         household={household}
         profile={profile}

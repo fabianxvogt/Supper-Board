@@ -516,6 +516,53 @@ describe('PostgreSQL persistence and security regressions', () => {
     expect(original.rows[0].point_value).toBe('95');
   });
 
+  it('checks a whole ingredient group atomically, replays once, and rejects stale source revisions', async () => {
+    const fixture = await createHouseholdFixture('Grouped checkoff fixture');
+    await authenticate(fixture.userId);
+    const lines = [
+      { lineKey: 'need-one', lineFingerprint: 'a'.repeat(64) },
+      { lineKey: 'need-two', lineFingerprint: 'b'.repeat(64) },
+    ];
+    const envelope = {
+      operationId: randomUUID(), expectedRevisions: { [fixture.householdId]: 0 },
+      payload: { householdId: fixture.householdId, lines, checked: true, sourcePlanRevision: 0, sourceInventoryRevision: 0 },
+    };
+    await expectDatabaseError(() => command('set_shopping_checkoff', {
+      ...envelope, payload: { ...envelope.payload, lines: [lines[0], { ...lines[1], lineFingerprint: 'invalid' }] },
+    }), 'VALIDATION');
+    await expectDatabaseError(() => command('set_shopping_checkoff', {
+      ...envelope, payload: { ...envelope.payload, lines: [lines[0], lines[0]] },
+    }), 'VALIDATION');
+    await expectDatabaseError(() => command('set_shopping_checkoff', {
+      ...envelope, payload: { ...envelope.payload, sourcePlanRevision: 1 },
+    }), 'REVISION_CONFLICT');
+    await expectDatabaseError(() => command('set_shopping_checkoff', {
+      ...envelope, payload: { ...envelope.payload, sourceInventoryRevision: 1 },
+    }), 'REVISION_CONFLICT');
+    const before = await db.query('select shopping_revision from public.households where id=$1', [fixture.householdId]);
+    expect(before.rows[0].shopping_revision).toBe(0);
+    expect((await db.query('select line_key from public.shopping_checkoffs where household_id=$1', [fixture.householdId])).rows).toEqual([]);
+    const applied = await command('set_shopping_checkoff', envelope);
+    const replay = await command('set_shopping_checkoff', envelope);
+    expect(replay).toEqual({ ...applied, replayed: true });
+    await expectDatabaseError(() => command('set_shopping_checkoff', {
+      ...envelope, payload: { ...envelope.payload, checked: false },
+    }), 'IDEMPOTENCY_CONFLICT');
+    const checked = await db.query('select line_key,line_fingerprint,checked,revision from public.shopping_checkoffs where household_id=$1 order by line_key', [fixture.householdId]);
+    expect(checked.rows).toEqual([
+      { line_key: 'need-one', line_fingerprint: 'a'.repeat(64), checked: true, revision: 1 },
+      { line_key: 'need-two', line_fingerprint: 'b'.repeat(64), checked: true, revision: 1 },
+    ]);
+    const reopened = await command('set_shopping_checkoff', {
+      ...envelope, operationId: randomUUID(), expectedRevisions: { [fixture.householdId]: 1 },
+      payload: { ...envelope.payload, checked: false },
+    });
+    expect(asJsonObject(reopened.revisions)[fixture.householdId]).toBe(2);
+    expect((await db.query('select checked,revision from public.shopping_checkoffs where household_id=$1', [fixture.householdId])).rows).toEqual([
+      { checked: false, revision: 2 }, { checked: false, revision: 2 },
+    ]);
+  });
+
   it('M6 requires a lowercase line fingerprint and preserves snapshot quantity basis and batch provenance', async () => {
     const fixture = await createHouseholdFixture('Shopping snapshot fixture');
     const planId = randomUUID();
@@ -564,7 +611,7 @@ describe('PostgreSQL persistence and security regressions', () => {
       operationId: randomUUID(),
       expectedRevisions: { [fixture.householdId]: 0 },
       payload: {
-        householdId: fixture.householdId, lineKey: 'legacy-line', lineFingerprint: fingerprint, checked: true,
+        householdId: fixture.householdId, lines: [{ lineKey: 'legacy-line', lineFingerprint: fingerprint }], checked: true,
         sourcePlanRevision: 0, sourceInventoryRevision: 0,
       },
     });
@@ -575,7 +622,7 @@ describe('PostgreSQL persistence and security regressions', () => {
       operationId: randomUUID(),
       expectedRevisions: { [fixture.householdId]: 1 },
       payload: {
-        householdId: fixture.householdId, lineKey: 'invalid-line', lineFingerprint: 'A'.repeat(64), checked: true,
+        householdId: fixture.householdId, lines: [{ lineKey: 'invalid-line', lineFingerprint: 'A'.repeat(64) }], checked: true,
         sourcePlanRevision: 0, sourceInventoryRevision: 0,
       },
     }), 'VALIDATION');

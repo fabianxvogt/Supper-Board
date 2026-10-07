@@ -458,6 +458,46 @@ describe('local Supabase Auth and PostgREST acceptance', () => {
     expect(finalError).toBeNull();
     expect(asRecord(finalData)).toMatchObject({ name: `${householdName} idempotent write`, revision: expectedRevision + 2 });
   }, 45_000);
+  it('commits only one concurrent grouped checkoff and replays it without changing stock', async () => {
+    const owner = await createSyntheticUser();
+    const { id: householdId } = await createOwnerHousehold(owner, `Grouped shopping ${randomUUID()}`);
+    const secondClient = await signIn(owner.email, owner.password);
+    const before = await readHouseholdRevisions(owner.client, householdId);
+    const lines = [
+      { lineKey: 'ingredient-one', lineFingerprint: 'a'.repeat(64) },
+      { lineKey: 'ingredient-two', lineFingerprint: 'b'.repeat(64) },
+    ];
+    const envelopes: CommandEnvelope[] = [true, false].map((checked) => ({
+      operationId: randomUUID(), expectedRevisions: { [householdId]: Number(before.shopping_revision) },
+      payload: { householdId, lines, checked, sourcePlanRevision: before.plan_revision, sourceInventoryRevision: before.inventory_revision },
+    }));
+    const results = await Promise.all(envelopes.map((envelope, index) =>
+      (index === 0 ? owner.client : secondClient).rpc('set_shopping_checkoff', { p_command: envelope }),
+    ));
+    expect(results.filter((result) => result.error === null)).toHaveLength(1);
+    expect(results.filter((result) => result.error !== null)).toHaveLength(1);
+    expect(results.find((result) => result.error !== null)?.error?.message).toContain('REVISION_CONFLICT');
+    const winner = results.findIndex((result) => result.error === null);
+    const applied = asRecord(results[winner].data);
+    const replay = await rpc(secondClient, 'set_shopping_checkoff', envelopes[winner]);
+    expect(replay).toEqual({ ...applied, replayed: true });
+    await expectRpcFailure(owner.client, 'set_shopping_checkoff', {
+      ...envelopes[winner], payload: { ...envelopes[winner].payload, lines: [{ ...lines[0], lineFingerprint: 'c'.repeat(64) }, lines[1]] },
+    }, 'IDEMPOTENCY_CONFLICT');
+    const { data, error } = await owner.client.from('shopping_checkoffs')
+      .select('line_key,line_fingerprint,checked,revision').eq('household_id', householdId).order('line_key');
+    expect(error).toBeNull();
+    expect(data).toEqual([
+      { line_key: 'ingredient-one', line_fingerprint: 'a'.repeat(64), checked: envelopes[winner].payload.checked, revision: 1 },
+      { line_key: 'ingredient-two', line_fingerprint: 'b'.repeat(64), checked: envelopes[winner].payload.checked, revision: 1 },
+    ]);
+    expect(await readHouseholdRevisions(owner.client, householdId)).toEqual({
+      ...before, shopping_revision: Number(before.shopping_revision) + 1,
+    });
+    expect(await selectRows(owner.client, 'inventory_items', 'id', 'household_id', householdId)).toEqual([]);
+    expect(await selectRows(owner.client, 'procurement_receipts', 'id', 'household_id', householdId)).toEqual([]);
+  }, 45_000);
+
   it('accepts concurrent inventory consumption once and preserves receipt idempotency and the ordered snapshot', async () => {
     const owner = await createSyntheticUser();
     const householdName = `Inventory transaction ${randomUUID()}`;

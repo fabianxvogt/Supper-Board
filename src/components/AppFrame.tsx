@@ -63,6 +63,13 @@ export function AppFrame({
             </form>
           </details>
           <Link className="button button-small button-quiet" href="/profile">Profil</Link>
+          <details className="context-switcher">
+            <summary className="button button-small button-quiet">Haushalt & Datenschutz</summary>
+            <nav className="context-panel stack" aria-label="Haushalts- und Datenschutzeinstellungen">
+              <Link className="button button-small" href="/household">Haushalt, Personen & Einladungen</Link>
+              <Link className="button button-small" href="/data">Daten & Privatsphäre · Export und Löschen</Link>
+            </nav>
+          </details>
           <form action={signOutAction}>
             <button className="button button-small button-quiet" type="submit" aria-label="Abmelden">Abmelden</button>
           </form>

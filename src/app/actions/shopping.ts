@@ -7,6 +7,7 @@ import { mutationErrorMessage } from '@/app/workspace/mutation-error';
 import { addLocalDays } from '@/domain/dates';
 import { localToday } from '@/app/workspace/format';
 import type { ShoppingSnapshot } from '@/data/repository';
+import { groupShoppingItems } from '@/features/shopping/shopping-list';
 
 export interface ShoppingActionState {
   error?: string;
@@ -38,7 +39,10 @@ const snapshotSchema = z.object({ operationId: uuid, householdId: uuid, horizonD
 const lineCheckoffSchema = z.object({
   operationId: uuid,
   householdId: uuid,
-  lineKey: z.string().trim().min(1).max(300),
+  lines: z.array(z.object({
+    lineKey: z.string().min(1).max(500).refine((value) => value === value.trim()),
+    lineFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+  })).min(1).refine((lines) => new Set(lines.map((line) => line.lineKey)).size === lines.length),
   checked: z.enum(['true', 'false']),
   horizonDays: z.enum(['7', '14']),
   expectedPlanRevision: z.coerce.number().int().nonnegative(),
@@ -120,7 +124,7 @@ export async function saveShoppingExtraAction(_previous: ShoppingActionState, fo
 
 export async function setShoppingCheckoffAction(_previous: ShoppingActionState, formData: FormData): Promise<ShoppingActionState> {
   const input = lineCheckoffSchema.safeParse({
-    operationId: formData.get('operationId'), householdId: formData.get('householdId'), lineKey: formData.get('lineKey'), checked: formData.get('checked'),
+    operationId: formData.get('operationId'), householdId: formData.get('householdId'), lines: parseJson(formData, 'linesJson', null), checked: formData.get('checked'),
     horizonDays: formData.get('horizonDays'), expectedPlanRevision: formData.get('expectedPlanRevision'), expectedInventoryRevision: formData.get('expectedInventoryRevision'),
     expectedShoppingRevision: formData.get('expectedShoppingRevision'),
   });
@@ -132,13 +136,18 @@ export async function setShoppingCheckoffAction(_previous: ShoppingActionState, 
     const today = localToday(household.timeZone);
     const horizonDays = Number(input.data.horizonDays) as 7 | 14;
     const current = await repository.getShoppingProjection({ householdId: household.id, from: today, to: addLocalDays(today, horizonDays - 1) });
-    if (current.planRevision !== input.data.expectedPlanRevision || current.inventoryRevision !== input.data.expectedInventoryRevision || current.shoppingRevision !== input.data.expectedShoppingRevision) return { error: 'Plan, Vorrat oder Einkaufsliste wurde inzwischen geändert. Kein Status wurde überschrieben; aktualisiere die Projektion.' };
-    const item = current.projection.items.find((candidate) => candidate.id === input.data.lineKey);
-    if (!item) return { error: 'Diese Listenposition ist nicht mehr offen. Aktualisiere die Liste.' };
+    // On a stale view, let the RPC distinguish an exact replay from a revision conflict.
+    // Rebuilding fingerprints after a lost response would break idempotency.
+    if (current.planRevision === input.data.expectedPlanRevision && current.inventoryRevision === input.data.expectedInventoryRevision && current.shoppingRevision === input.data.expectedShoppingRevision) {
+      const group = groupShoppingItems(current.projection.items).find((candidate) => candidate.id === input.data.lines[0].lineKey);
+      if (!group || group.items.length !== input.data.lines.length || group.items.some((item, index) =>
+        item.id !== input.data.lines[index].lineKey || current.lineFingerprints[item.id] !== input.data.lines[index].lineFingerprint
+      )) return { error: 'Die zusammengefasste Position hat sich geändert. Kein Status wurde überschrieben; lade die Einkaufsliste neu.' };
+    }
     const result = await repository.setShoppingCheckoff({
       operationId: input.data.operationId,
       expectedRevisions: { [household.id]: input.data.expectedShoppingRevision },
-      payload: { householdId: household.id, lineKey: input.data.lineKey, checked: input.data.checked === 'true', sourcePlanRevision: current.planRevision, sourceInventoryRevision: current.inventoryRevision, lineFingerprint: current.lineFingerprints[input.data.lineKey] },
+      payload: { householdId: household.id, lines: input.data.lines, checked: input.data.checked === 'true', sourcePlanRevision: input.data.expectedPlanRevision, sourceInventoryRevision: input.data.expectedInventoryRevision },
     });
     revalidatePath('/shopping');
     return { savedOperationId: result.operationId };
@@ -153,7 +162,7 @@ export async function createShoppingSnapshotAction(_previous: ShoppingActionStat
   try {
     const { repository, household, membership } = await getWorkspaceContext();
     if (input.data.householdId !== household.id) return { error: 'Der aktive Haushalt hat sich geändert. Lade die Einkaufsliste neu.' };
-    if (membership.role === 'viewer') return { error: 'Deine Haushaltsrolle erlaubt keinen neuen Listensnapshot.' };
+    if (membership.role === 'viewer') return { error: 'Deine Haushaltsrolle erlaubt keinen neuen gespeicherten Einkaufsstand.' };
     const today = localToday(household.timeZone);
     const horizonDays = Number(input.data.horizonDays) as 7 | 14;
     const current = await repository.getShoppingProjection({ householdId: household.id, from: today, to: addLocalDays(today, horizonDays - 1) });
@@ -186,7 +195,7 @@ export async function createShoppingSnapshotAction(_previous: ShoppingActionStat
     revalidatePath('/shopping');
     return { savedOperationId: result.operationId, snapshotId: result.result.snapshotId };
   } catch (error) {
-    return { error: mutationErrorMessage(error, 'Der Einkaufsstand wurde nicht als Snapshot gespeichert. Deine aktuelle Liste bleibt erhalten; du kannst es erneut versuchen.') };
+    return { error: mutationErrorMessage(error, 'Der Einkaufsstand wurde nicht gespeichert. Deine aktuelle Liste bleibt erhalten; du kannst es erneut versuchen.') };
   }
 }
 
@@ -195,13 +204,13 @@ export async function markSnapshotOrderedAction(_previous: ShoppingActionState, 
     operationId: formData.get('operationId'), householdId: formData.get('householdId'), snapshotId: formData.get('snapshotId'),
     expectedSnapshotRevision: formData.get('expectedSnapshotRevision'), expectedDate: formData.get('expectedDate') ?? '', orderReference: formData.get('orderReference') ?? '',
   });
-  if (!input.success) return { error: 'Prüfe Snapshot, erwartetes Datum und optionale Bestellnotiz.' };
+  if (!input.success) return { error: 'Prüfe Einkaufsstand, erwartetes Datum und optionale Bestellnotiz.' };
   try {
     const { repository, household, membership } = await getWorkspaceContext();
     if (input.data.householdId !== household.id) return { error: 'Der aktive Haushalt hat sich geändert. Lade die Bestellung neu.' };
     if (membership.role === 'viewer') return { error: 'Deine Haushaltsrolle erlaubt keine Bestellstatusänderung.' };
     const snapshot = await repository.getShoppingSnapshot({ householdId: household.id, snapshotId: input.data.snapshotId });
-    if (!snapshot || snapshot.revision !== input.data.expectedSnapshotRevision) return { error: 'Der Snapshot ist nicht mehr aktuell. Keine Bestellung wurde markiert; lade den Stand neu.' };
+    if (!snapshot || snapshot.revision !== input.data.expectedSnapshotRevision) return { error: 'Der gespeicherte Einkaufsstand ist nicht mehr aktuell. Keine Bestellung wurde markiert; lade den Stand neu.' };
     const result = await repository.markSnapshotOrdered({
       operationId: input.data.operationId,
       expectedRevisions: { [snapshot.id]: snapshot.revision },
@@ -210,7 +219,7 @@ export async function markSnapshotOrderedAction(_previous: ShoppingActionState, 
     revalidatePath('/shopping');
     return { savedOperationId: result.operationId };
   } catch (error) {
-    return { error: mutationErrorMessage(error, 'Der Snapshot wurde nicht als extern bestellt markiert. Deine Eingaben sind erhalten; du kannst es erneut versuchen.') };
+    return { error: mutationErrorMessage(error, 'Der Einkaufsstand wurde nicht als extern bestellt markiert. Deine Eingaben sind erhalten; du kannst es erneut versuchen.') };
   }
 }
 

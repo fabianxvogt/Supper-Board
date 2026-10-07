@@ -83,6 +83,7 @@ export function ProfileEditor({ initial, today, operationId, saveAction }: { ini
   }
 
   const preview = useMemo(() => {
+    if (values.nutritionMode !== 'guided') return { profile: null, capabilities: null, estimate: null, error: null };
     try {
       const profile = {
         calculationDate: today,
@@ -115,30 +116,41 @@ export function ProfileEditor({ initial, today, operationId, saveAction }: { ini
       <input type="hidden" name="expectedRevision" value={values.revision ?? ''} />
       <section className="card stack" aria-labelledby="profile-display-heading">
         <p className="eyebrow">Privates Profil · Anzeige & Portionen</p><h2 id="profile-display-heading">Wie möchtest du planen?</h2>
-        <label className="field" htmlFor="nutrition-mode">Nährwertdarstellung<select id="nutrition-mode" name="nutritionMode" value={values.nutritionMode} onChange={(event) => update('nutritionMode', event.currentTarget.value as ProfileFormValues['nutritionMode'])}><option value="view">Nur Werte ansehen</option><option value="manual">Eigene Ziele nutzen</option><option value="guided">Freigegebene Berechnungshilfe ansehen</option></select><span className="field-hint">„Berechnungshilfe“ schaltet nur einzeln verfügbare Funktionen frei und richtet kein Ziel automatisch ein.</span></label>
+        <label className="field" htmlFor="nutrition-mode">Nährwertdarstellung<select id="nutrition-mode" name="nutritionMode" value={values.nutritionMode} onChange={(event) => update('nutritionMode', event.currentTarget.value as ProfileFormValues['nutritionMode'])}><option value="view">Nur Werte ansehen</option><option value="manual">Eigene Ziele nutzen</option><option value="guided">Freigegebene Berechnungshilfe ansehen</option></select><span className="field-hint">Planen und Werte ansehen geht ohne Körperdaten. Eigene Ziele brauchen keine Berechnung. Die Berechnungshilfe richtet kein Ziel automatisch ein.</span></label>
         <label className="field" htmlFor="profile-preferences">Vorlieben (optional)<input id="profile-preferences" name="preferences" value={values.preferences} maxLength={1000} onChange={(event) => update('preferences', event.currentTarget.value)} /><span className="field-hint">Mit Komma trennen. Nur für dein privates Profil.</span></label>
         <label className="field" htmlFor="profile-exclusions">Ausgeschlossene Zutaten (optional)<input id="profile-exclusions" name="exclusions" value={values.exclusions} maxLength={1000} onChange={(event) => update('exclusions', event.currentTarget.value)} /><span className="field-hint">Unbekannte Katalogdaten belegen keine Verträglichkeit.</span></label>
         <p id="share-targets-privacy" className="help">Die Freigabe teilt Zielwerte, nicht die gespeicherten Körpermaße, Aktivitätsangaben oder Energieschätzungen. Gewichtsbezogene Ziele können trotzdem Rückschlüsse auf dein Körpergewicht erlauben, etwa aus einem Protein-Tagesziel und dem bekannten g/kg-Referenzwert. Teile solche Ziele nur, wenn du damit einverstanden bist.</p>
         <label className="inline" htmlFor="share-targets"><input id="share-targets" name="shareTargetsWithHousehold" type="checkbox" value="true" aria-describedby="share-targets-privacy" checked={values.shareTargetsWithHousehold} onChange={(event) => update('shareTargetsWithHousehold', event.currentTarget.checked)} />Meine Zielversionen mit dem Haushalt teilen</label>
       </section>
 
-      <section className="card stack" aria-labelledby="profile-reference-heading">
-        <p className="eyebrow">Körper & Aktivität · optional und privat</p><h2 id="profile-reference-heading">Berechnungskontext</h2>
-        <p className="muted">Manuelle Ziele und Rezeptplanung funktionieren ohne diese Angaben. Körperwerte bleiben ausschließlich für dein Konto lesbar.</p>
-        <div className="form-grid">
-          <label className="field" htmlFor="birth-date">Geburtsdatum (optional)<input id="birth-date" name="birthDate" type="date" max={today} value={values.birthDate} onChange={(event) => { update('birthDate', event.currentTarget.value); if (event.currentTarget.value) { update('ageYears', ''); update('ageAsOfDate', ''); } }} /><span className="field-hint">Alternativ Alter mit Bezugsdatum eintragen.</span></label>
-          <label className="field" htmlFor="age-years">Bestätigtes Alter in vollendeten Jahren<input id="age-years" name="ageYears" inputMode="numeric" value={values.ageYears} disabled={Boolean(values.birthDate)} onChange={(event) => { update('ageYears', event.currentTarget.value); if (event.currentTarget.value) update('birthDate', ''); }} /></label>
-          <label className="field" htmlFor="age-date">Bezugsdatum für dieses Alter<input id="age-date" name="ageAsOfDate" type="date" max={today} value={values.ageAsOfDate} disabled={Boolean(values.birthDate)} onChange={(event) => update('ageAsOfDate', event.currentTarget.value)} /><span className="field-hint">Das Erfassungsdatum ist kein Geburtstag.</span></label>
-          <label className="field" htmlFor="height-cm">Körpergröße (cm)<input id="height-cm" name="heightCm" inputMode="decimal" value={values.heightCm} onChange={(event) => update('heightCm', event.currentTarget.value)} /></label>
-          <label className="field" htmlFor="weight-kg">Gewicht (kg)<input id="weight-kg" name="weightKg" inputMode="decimal" value={values.weightKg} onChange={(event) => update('weightKg', event.currentTarget.value)} /></label>
-          <label className="field" htmlFor="weight-date">Messdatum des Gewichts<input id="weight-date" name="weightMeasuredOn" type="date" max={today} value={values.weightMeasuredOn} onChange={(event) => update('weightMeasuredOn', event.currentTarget.value)} /></label>
-          <label className="field" htmlFor="formula-group">Formelgruppe (optional)<select id="formula-group" name="sourceCalculationGroup" value={values.sourceCalculationGroup} onChange={(event) => update('sourceCalculationGroup', event.currentTarget.value as ProfileFormValues['sourceCalculationGroup'])}><option value="">Nicht gewählt</option><option value="male">Männliche Quellgruppe</option><option value="female">Weibliche Quellgruppe</option></select><span className="field-hint">Nur für die Quelle passende Berechnung. Wird nicht aus Name, Identität oder Avatar abgeleitet.</span></label>
-          <label className="field" htmlFor="profile-context">Referenzkontext<select id="profile-context" name="referenceContext" value={values.referenceContext} onChange={(event) => update('referenceContext', event.currentTarget.value as ProfileContext)}><option value="standard_adult">Standard-Erwachsenenkontext</option><option value="child">Kind</option><option value="older_adult">Ältere Person</option><option value="pregnancy">Schwangerschaft</option><option value="lactation">Stillzeit</option><option value="clinical">Klinischer Kontext</option><option value="performance">Leistungs-/Sportkontext</option><option value="other">Anderer Kontext</option></select></label>
-          <label className="field" htmlFor="pal">Bestätigter Gesamt-PAL<input id="pal" name="pal" inputMode="decimal" value={values.pal} onChange={(event) => update('pal', event.currentTarget.value)} /><span className="field-hint">Der PAL umfasst den üblichen Alltag mit Arbeit, Freizeit und Sport. Einzelne Trainingseinheiten werden nicht zusätzlich addiert.</span></label>
-        </div>
-        <label className="field" htmlFor="activity-description">Aktivitätsbeschreibung (optional)<textarea id="activity-description" name="activityDescription" value={values.activityDescription} maxLength={1500} rows={3} onChange={(event) => update('activityDescription', event.currentTarget.value)} /></label>
-        <p className="help">Jede Messung ist datiert. Eine Änderung schlägt eine neue Schätzung vor und überschreibt keine manuell gesperrten Ziele.</p>
-      </section>
+      <details className="card" open={values.nutritionMode === 'guided'}>
+        <summary>Optionale Körperangaben & Berechnungshilfe</summary>
+        <section className="stack" aria-labelledby="profile-reference-heading">
+          <h2 id="profile-reference-heading">Nur ergänzen, wenn du es möchtest</h2>
+          <p className="muted">Rezeptplanung und manuelle Ziele funktionieren ohne diese Angaben. Gespeicherte Werte bleiben beim Schließen erhalten und sind nur für dein Konto lesbar. Leere Felder werden nicht geschätzt.</p>
+          <div className="form-grid">
+            <label className="field" htmlFor="birth-date">Geburtsdatum (optional)<input id="birth-date" name="birthDate" type="date" max={today} value={values.birthDate} onChange={(event) => { update('birthDate', event.currentTarget.value); if (event.currentTarget.value) { update('ageYears', ''); update('ageAsOfDate', ''); } }} /><span className="field-hint">Alternativ Alter mit Bezugsdatum eintragen.</span></label>
+            <label className="field" htmlFor="age-years">Bestätigtes Alter (optional)<input id="age-years" name="ageYears" inputMode="numeric" value={values.ageYears} disabled={Boolean(values.birthDate)} onChange={(event) => { update('ageYears', event.currentTarget.value); if (event.currentTarget.value) update('birthDate', ''); }} /></label>
+            <label className="field" htmlFor="age-date">Bezugsdatum für dieses Alter<input id="age-date" name="ageAsOfDate" type="date" max={today} value={values.ageAsOfDate} disabled={Boolean(values.birthDate)} onChange={(event) => update('ageAsOfDate', event.currentTarget.value)} /><span className="field-hint">Nur zusammen mit einem Alter. Das Erfassungsdatum ist kein Geburtstag.</span></label>
+            <label className="field" htmlFor="formula-group">Formelgruppe (optional)<select id="formula-group" name="sourceCalculationGroup" value={values.sourceCalculationGroup} onChange={(event) => update('sourceCalculationGroup', event.currentTarget.value as ProfileFormValues['sourceCalculationGroup'])}><option value="">Nicht gewählt</option><option value="male">Männliche Quellgruppe</option><option value="female">Weibliche Quellgruppe</option></select><span className="field-hint">Wird nicht aus Name, Identität oder Avatar abgeleitet.</span></label>
+            <label className="field" htmlFor="profile-context">Referenzkontext<select id="profile-context" name="referenceContext" value={values.referenceContext} onChange={(event) => update('referenceContext', event.currentTarget.value as ProfileContext)}><option value="standard_adult">Standard-Erwachsenenkontext</option><option value="child">Kind</option><option value="older_adult">Ältere Person</option><option value="pregnancy">Schwangerschaft</option><option value="lactation">Stillzeit</option><option value="clinical">Klinischer Kontext</option><option value="performance">Leistungs-/Sportkontext</option><option value="other">Anderer Kontext</option></select></label>
+          </div>
+          <details>
+            <summary>Gewicht, Größe und Alltag für eine Energieschätzung ergänzen (optional)</summary>
+            <div className="stack">
+              <p className="help">Erst mit bestätigtem Alter, passender Formelgruppe, Größe, datiertem Gewicht und Gesamt-PAL kann eine freigegebene Schätzung entstehen. Fehlende Angaben bleiben fehlend.</p>
+              <div className="form-grid">
+                <label className="field" htmlFor="height-cm">Körpergröße (cm, optional)<input id="height-cm" name="heightCm" inputMode="decimal" value={values.heightCm} onChange={(event) => update('heightCm', event.currentTarget.value)} /></label>
+                <label className="field" htmlFor="weight-kg">Gewicht (kg, optional)<input id="weight-kg" name="weightKg" inputMode="decimal" value={values.weightKg} onChange={(event) => update('weightKg', event.currentTarget.value)} /></label>
+                <label className="field" htmlFor="weight-date">Messdatum des Gewichts<input id="weight-date" name="weightMeasuredOn" type="date" max={today} value={values.weightMeasuredOn} onChange={(event) => update('weightMeasuredOn', event.currentTarget.value)} /></label>
+                <label className="field" htmlFor="pal">Bestätigter Gesamt-PAL (optional)<input id="pal" name="pal" inputMode="decimal" value={values.pal} onChange={(event) => update('pal', event.currentTarget.value)} /><span className="field-hint">Umfasst den üblichen Alltag mit Arbeit, Freizeit und Sport. Einzelne Trainingseinheiten werden nicht zusätzlich addiert.</span></label>
+              </div>
+              <label className="field" htmlFor="activity-description">Aktivitätsbeschreibung (optional)<textarea id="activity-description" name="activityDescription" value={values.activityDescription} maxLength={1500} rows={3} onChange={(event) => update('activityDescription', event.currentTarget.value)} /></label>
+            </div>
+          </details>
+          <p className="help">Messungen bleiben datiert. Eine neue Schätzung überschreibt keine manuell gesperrten Ziele.</p>
+        </section>
+      </details>
 
       {values.nutritionMode === 'guided' &&
       <section className="card stack" aria-labelledby="estimate-heading">

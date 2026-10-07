@@ -45,9 +45,11 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
   const checkoffs: ShoppingCheckoffView[] = current.checkoffs.map((checkoff) => ({ lineKey: checkoff.lineKey, checked: checkoff.checked }));
   const canEdit = membership.role !== 'viewer';
   return <main className="page-wrap">
-    <header className="page-heading"><div><p className="eyebrow">M6 · Einkauf</p><h1>Einkaufsplanung</h1><p>Eine aktuelle Projektion des aktiven Plans, bestätigten Vorrats und offener Beschaffungen. Kein Preis- oder Verfügbarkeitsfeed ist angeschlossen.</p></div></header>
+    <header className="page-heading"><div><h1>Einkaufsliste</h1><p className="help">{household.name} · nächste {horizonDays} Tage</p></div></header>
     <ShoppingWorkspace
       householdId={household.id}
+      householdName={household.name}
+      savedAt={new Date().toISOString()}
       projection={current.projection}
       horizonDays={horizonDays}
       planRevision={current.planRevision}
@@ -56,6 +58,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
       extras={extras}
       checkoffs={checkoffs}
       snapshots={snapshots}
+      lineFingerprints={current.lineFingerprints}
       positions={positionViews}
       selectedSnapshot={selectedSnapshot}
       selectedSubstitution={selectedSubstitution}
@@ -76,8 +79,10 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
       receiveAction={confirmReceivedItemsAction}
       cancelAction={cancelProcurementAction}
     />
-    <section className="stack" aria-labelledby="market-links-heading">
-      <div><p className="eyebrow">Manuelle Suche statt erfundener Preise</p><h2 id="market-links-heading">Märkte und externe Händlerlinks</h2><p className="muted">Links werden von Haushaltsmitgliedern gepflegt. Produktzuordnung, Verfügbarkeit und Preise werden nicht automatisch behauptet.</p></div>
+    <details className="card">
+      <summary>Markt finden oder Händlerlinks verwalten</summary>
+      <section className="stack" aria-labelledby="market-links-heading">
+      <div><h2 id="market-links-heading">Märkte und Händlerlinks</h2><p className="muted">Manuelle Suche, keine automatische Bestellung. Produktzuordnung, Verfügbarkeit und Preise sind nicht bestätigt.</p></div>
       <MarketSearch postalCode={merchantPreference?.postalCode ?? ''} city={merchantPreference?.city ?? ''} favoriteMerchant={merchantPreference?.favoriteMerchant ?? ''} />
       {merchantPreference?.links.length ? <ul className="card stack" aria-label="Gespeicherte Händlerlinks">{merchantPreference.links.map((link) => <li key={link.id}><a href={link.url} target="_blank" rel="noopener noreferrer">{linkTypeLabel(link.linkType)}: {link.label}<span className="sr-only"> (öffnet neuen Tab)</span></a></li>)}</ul> : <p className="card card-flat">Noch keine Händlerlinks gespeichert. Für Märkte kannst du jederzeit die manuelle Kartensuche nutzen.</p>}
       {canEdit ? <MerchantPreferencesForm
@@ -91,6 +96,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
         action={saveMerchantPreferenceAction}
       /> : <p className="alert">Du hast Leserechte. PLZ, Lieblingsmarkt und gespeicherte Händlerlinks können Haushaltsmitglieder mit Bearbeitungsrechten ändern.</p>}
     </section>
+    </details>
   </main>;
 }
 
