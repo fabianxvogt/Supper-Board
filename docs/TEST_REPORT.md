@@ -1,13 +1,13 @@
 # Verification report
 
-Environment observed 2026-10-06–07: macOS arm64, Node22.23.2, npm10.9.8, Docker28.0.4, isolated Google Chrome debugging endpoints. Source baseline `0d31989d65933b6491bbfa5eb178e5a55c904f85`; implementation branch `feat/nutrition-v1`. Final implementation commit will be recorded after verification.
+Environment observed 2026-10-06–07: macOS arm64, Node22.23.2, npm10.9.8, Docker28.0.4, isolated Google Chrome debugging endpoints. Upstream baseline `0d31989d65933b6491bbfa5eb178e5a55c904f85`; implementation branch `feat/nutrition-v1`. Verified implementation commit: [`b0dfe26b585db9f02e9a3e2dd16fbb903c8d0220`](https://github.com/fabianxvogt/Supper-Board/commit/b0dfe26b585db9f02e9a3e2dd16fbb903c8d0220). Subsequent evidence-record commits do not change the verified application.
 
 ## Executed
 
 | Check | Result | Evidence |
 |---|---|---|
 | GitHub fork metadata | Passed | `fork=true`, parent `weezerhunter/Supper-Board`, owner `fabianxvogt` |
-| Fork remotes and upstream baseline | Passed | Origin own fork; upstream original; HEAD matches specification |
+| Fork remotes and upstream baseline | Passed | Origin own fork; upstream original; initial fork HEAD matched the specified upstream baseline |
 | Docker service | Passed | `docker info --format '{{.ServerVersion}}'` returned28.0.4 |
 | Pinned dependency installation | Passed; initial warnings reviewed | Initial install reported peer/deprecation warnings. Current pinned build,61 units,17 DB tests and3 production-browser journeys pass. Narrow ExcelJS→UUID11.1.1 override resolves the2 moderate audit findings without downgrading ExcelJS; production audit now0 and full official workbook validation remains valid. |
 | Original board runtime | Passed, reference only | Actual Chromium at390px, push one day then Undo; shopping controls visible, browser-only demo banner |
