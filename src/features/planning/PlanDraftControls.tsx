@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { createContext, useActionState, useContext, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ActionStatus, SubmitButton } from '@/components/SubmitButton';
 import type { FoodSearchHit } from '@/data/repository';
@@ -9,6 +9,33 @@ import type { DraftEntryChoice, PlanDraftActionState } from '@/features/planning
 import { nutrientBasisLabel } from '@/app/workspace/format';
 
 export type DraftMutationAction = (state: PlanDraftActionState, formData: FormData) => Promise<PlanDraftActionState>;
+
+const DraftMutationContext = createContext<{
+  begin: () => void;
+  settle: (savedRevision: number | null) => void;
+} | null>(null);
+
+export function PlanDraftMutationScope({ revision, children }: { revision: number; children: ReactNode }) {
+  const [pending, setPending] = useState(false);
+  const [savedRevision, setSavedRevision] = useState<number | null>(null);
+  // A completed request is not enough: sibling forms must receive the new revision.
+  const busy = pending || (savedRevision !== null && revision < savedRevision);
+  return <DraftMutationContext value={{
+    begin: () => setPending(true),
+    settle: (nextRevision) => { setSavedRevision(nextRevision); setPending(false); },
+  }}>
+    <fieldset className="stack draft-mutation-scope" disabled={busy} aria-busy={busy}>
+      {children}
+      {busy && <p role="status">Änderung wird gespeichert und neu geladen …</p>}
+    </fieldset>
+  </DraftMutationContext>;
+}
+
+function useDraftMutation() {
+  const mutation = useContext(DraftMutationContext);
+  if (!mutation) throw new Error('Draft controls require a PlanDraftMutationScope.');
+  return mutation;
+}
 
 export function DraftEntryReplacementForm({
   householdId,
@@ -34,20 +61,28 @@ export function DraftEntryReplacementForm({
   action: DraftMutationAction;
 }) {
   const router = useRouter();
+  const mutation = useDraftMutation();
   const [currentOperationId, setCurrentOperationId] = useState(operationId);
   const [kind, setKind] = useState(entry.kind);
   const [foodVersionId, setFoodVersionId] = useState(entry.foodVersionId ?? '');
   const preserveFormValues = useRef(false);
   const [state, formAction] = useActionState(async (previousState: PlanDraftActionState, formData: FormData) => {
-    const result = await action(previousState, formData);
-    if (result.savedOperationId && result.savedOperationId === formData.get('operationId')) {
-      preserveFormValues.current = false;
-      setCurrentOperationId(crypto.randomUUID());
-      router.refresh();
-    } else if (result.error) {
-      preserveFormValues.current = true;
+    mutation.begin();
+    let savedRevision: number | null = null;
+    try {
+      const result = await action(previousState, formData);
+      if (result.savedOperationId && result.savedOperationId === formData.get('operationId')) {
+        savedRevision = draftRevision + 1;
+        preserveFormValues.current = false;
+        setCurrentOperationId(crypto.randomUUID());
+        router.refresh();
+      } else if (result.error) {
+        preserveFormValues.current = true;
+      }
+      return result;
+    } finally {
+      mutation.settle(savedRevision);
     }
-    return result;
   }, {});
   return (
     <details>
@@ -100,18 +135,26 @@ export function ApprovePlanDraftForm({
   action: DraftMutationAction;
 }) {
   const router = useRouter();
+  const mutation = useDraftMutation();
   const [currentOperationId, setCurrentOperationId] = useState(operationId);
   const preserveFormValues = useRef(false);
   const [state, formAction] = useActionState(async (previousState: PlanDraftActionState, formData: FormData) => {
-    const result = await action(previousState, formData);
-    if (result.savedOperationId && result.savedOperationId === formData.get('operationId')) {
-      preserveFormValues.current = false;
-      setCurrentOperationId(crypto.randomUUID());
-      router.refresh();
-    } else if (result.error) {
-      preserveFormValues.current = true;
+    mutation.begin();
+    let savedRevision: number | null = null;
+    try {
+      const result = await action(previousState, formData);
+      if (result.savedOperationId && result.savedOperationId === formData.get('operationId')) {
+        savedRevision = draft.revision + 1;
+        preserveFormValues.current = false;
+        setCurrentOperationId(crypto.randomUUID());
+        router.refresh();
+      } else if (result.error) {
+        preserveFormValues.current = true;
+      }
+      return result;
+    } finally {
+      mutation.settle(savedRevision);
     }
-    return result;
   }, {});
   const unresolved = draft.entries.some((entry) => entry.kind === 'flex' || (entry.replacementRequired && !entry.replacementResolved));
   return (

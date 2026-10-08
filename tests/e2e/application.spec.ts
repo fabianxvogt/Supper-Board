@@ -85,10 +85,7 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await expect(page.getByRole('heading', { name: recipeTitle })).toBeVisible();
 
   await page.getByRole('link', { name: 'Diese Mahlzeit planen', exact: true }).first().click();
-  const scheduleRecipe = page.locator('#schedule-recipe');
-  const recipeVersionId = new URL(page.url()).searchParams.get('recipeVersionId');
-  expect(recipeVersionId).toBeTruthy();
-  await expect(scheduleRecipe).toHaveValue(recipeVersionId!);
+  await expect(page.locator('#schedule-recipe option:checked')).toContainText(recipeTitle);
   await page.getByLabel('Kochdatum').fill(planStart);
   await page.getByLabel('Kochmenge (Portionen)').fill('2');
   await page.getByRole('button', { name: 'Charge einplanen' }).click();
@@ -130,9 +127,14 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   expect(replacementVersionId).toBeTruthy();
   await replacement.locator('select[name="recipeVersionId"]').selectOption(replacementVersionId!);
   await replacement.locator('input[name="cookPortions"]').fill('1');
+  await replacement.getByLabel('Synthetische Person', { exact: true }).fill('0,5');
   await replacement.getByRole('button', { name: 'Entwurfseintrag speichern' }).click();
   await savedDraft.getByRole('button', { name: /freigeben/ }).click();
-  await expect(savedDraft.getByText(/Status: approved/)).toBeVisible();
+  const replacementMeal = page.locator('.meal-entry-heading').filter({ has: page.getByRole('heading', { name: recipeTitle, exact: true }) });
+  await expect(replacementMeal).toHaveCount(1);
+  await expect(replacementMeal.getByText(/0,5 Portionen/)).toBeVisible();
+  await page.reload();
+  await expect(replacementMeal.getByText(/0,5 Portionen/)).toBeVisible();
 });
 
 test('minimum and maximum goals retain their thresholds after reload and require explicit sharing consent', async ({ page, owner }) => {

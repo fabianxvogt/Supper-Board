@@ -17,7 +17,7 @@ import { PlanControls } from '@/features/planning/PlanControls';
 import { ChecklistItemControl } from '@/features/planning/ChecklistItemControl';
 import { MealFeedbackForm } from '@/features/planning/MealFeedbackForm';
 import { PlanDraftEditor, type DraftEntryInput } from '@/features/planning/PlanDraftEditor';
-import { ApprovePlanDraftForm, DraftEntryReplacementForm } from '@/features/planning/PlanDraftControls';
+import { ApprovePlanDraftForm, DraftEntryReplacementForm, PlanDraftMutationScope } from '@/features/planning/PlanDraftControls';
 import { scheduleBatchAction, scheduleDirectFoodAction, allocateMealAction, previewPlanMoveAction, movePlanAction, swapMealsAction, undoPlanChangeAction, setChecklistItemAction, setPlanDayCompletenessAction, markBatchCookedAction, markDirectFoodProvidedAction, saveMealFeedbackAction, createPlanDraftAction, replaceDraftEntryAction, approvePlanDraftAction } from '@/app/actions/planning';
 
 const dateSchema = z.iso.date();
@@ -198,11 +198,13 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
             const targets = replacementTargets.filter((entry) => entry.planId === draft.planId);
             return <article className="card card-flat stack" key={draft.id}>
               <div className="split"><div><h3>{draft.title}</h3><p className="help">{draftPlan?.title} · Revision {draft.revision} · Status: {draft.status}</p></div><span className="status">{draft.entries.length} Termine</span></div>
+              <PlanDraftMutationScope revision={draft.revision}>
               <ul className="list-reset">{draft.entries.map((entry) => <li className="list-row stack" key={entry.id}>
                 <div><strong>{entry.date} · {entry.slot} · {entry.label}</strong><p className="help">{entry.kind === 'flex' ? 'Flexibel / noch offen' : entry.kind === 'recipe' ? 'Rezeptversion gespeichert' : 'Einzelnes Lebensmittel'}{entry.replacementRequired && !entry.replacementResolved ? ' · Ersetzung noch offen' : ''}</p></div>
                 {draft.status === 'open' && <DraftEntryReplacementForm householdId={context.household.id} draftId={draft.id} draftRevision={draft.revision} entry={entry} recipes={recipes} foods={foodChoices} persons={persons} existingEntries={targets} operationId={crypto.randomUUID()} action={replaceDraftEntryAction} />}
               </li>)}</ul>
               {draftPlan && draft.status === 'open' && <ApprovePlanDraftForm householdId={context.household.id} planId={draftPlan.id} planRevision={draftPlan.revision} draft={draft} operationId={crypto.randomUUID()} action={approvePlanDraftAction} />}
+              </PlanDraftMutationScope>
             </article>;
           })}
         </details>}
