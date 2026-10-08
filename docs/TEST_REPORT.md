@@ -1,8 +1,31 @@
 # Verification report
 
-Environment observed 2026-10-06–07: macOS arm64, Node22.23.2, npm10.9.8, Docker28.0.4, isolated Google Chrome debugging endpoints; hosted Vercel Hobby/fra1 and free Supabase/eu-central-1 PostgreSQL17.11. Upstream baseline `0d31989d65933b6491bbfa5eb178e5a55c904f85`; implementation branch `feat/nutrition-v1`. Original verified application commit: [`b0dfe26b585db9f02e9a3e2dd16fbb903c8d0220`](https://github.com/fabianxvogt/Supper-Board/commit/b0dfe26b585db9f02e9a3e2dd16fbb903c8d0220). The subsequent hosted release adds deployment configuration and the explicitly verified read-only API grant migration; no frontend workflow code changed.
+Environment: macOS arm64, Node22.23.2/npm10.9.8, Docker28.0.4, isolated production Chromium; hosted Vercel Hobby/fra1 and free Supabase/eu-central-1 PostgreSQL17.11. Branch `feat/nutrition-v1`. The current private-pilot evidence is distinct from the original58-case acceptance ledger below. Classification: INCREMENTAL / EMPIRICAL software verification, not scientific/clinical validation.
 
-## Executed
+## Private-pilot revision — executed 2026-10-07–08
+
+| Check | Observed result |
+|---|---|
+| Core suites |99/99 unit and49/49 database tests;zero-warning lint,TypeScript and optimized builds passed. |
+| Required browser journeys | All3 passed together on production build `ec20d1c`: body-free recipe/plan/target/draft replacement; private/shared threshold consumers; procurement snapshot/receipt/cancel/reversal/export. Actual replacement0.5 portion survives reload. |
+| Final CSS smoke | Production build `c234159` retains all raw reasons/BLS provenance; expanded320px diagnostics shrink from345px overflow to320px using wrapping, not clipping. Public home link has its name with hidden mobile wordmark. |
+| Extra local rerun limit | A subsequent run had2 onboarding five-second deadline failures and1 pass while shared-machine load reached179.25. Trace captured registration200 with the correct redirect; no retry or timeout was loosened. This run is not counted as a pass. |
+| Invitation/preview lifecycle | Before/after coverage for permanently revoked issuer invitations, consumed payload scrubbing, expired access, current destination roles, exact imported-private-profile deletion and role/command serialization. Actual scheduled purge removed expired synthetic data while retaining the unexpired control; cron reported success. |
+| Shopping authorization | Independent review found cached replay returning before authority checks. Real editor replay succeeded after removal before the fix; the same actor/envelope then returned FORBIDDEN. Removal/downgrade regressions failed-before/passed-after; lock-wait authorization remains covered. |
+| First-plan consistency | Normal JWT stale first-plan command returns REVISION_CONFLICT; one existing plan/revision remains unchanged. Reads retain existing multiple-plan history and allocations outside the selected week. |
+| Sparse/weekly calculation | Known20g protein plus a missing contribution is partial with no target comparison. Nutrient-specific weekly protein mean20g includes1 day independently of other nutrients; schedule-complete count remains separate. |
+| Inline capture/catalog | Three pasted rows deliberately mapped; remapping preserves text, amount, unit and basis. Scoped draft survives reload, recent choice is reusable, immutable save succeeds. “Tomaten roh” returns “Tomate roh” first. |
+| Connected phone workflows |320/390px task-first Today;14 visible dates/person control; recipe/catalog-return editor anchored below header; one-click leftovers allocated beyond the original week and visible there; settings→household→data navigation. Closed signup shows no registration fields. Existing-account sign-in works with signup closed. |
+| Shopping/list file |320px rice200g combines2 needs; tomato550g combines3; two unknown salt rows remain separate. Atomic tomato checkoff survives reload. Actual downloaded text retains550g/basis/no-sync; a later download excludes checked tomatoes but retains rice and both unknown rows.1280px list also fits. |
+| CI enforcement | Missing fixture opt-in fails. Deliberately skipped throwaway journey exited1 through the required-workflows reporter; the probe was removed. CI owns its server and runs real journeys rather than silently skipping. |
+| Independent review | Two Sol6.1/xhigh core/trust reviewers assessed settled diffs and retained execution evidence. Shopping replay finding fixed and re-proved; follow-up reports no blocker. Both workers closed. |
+| Recovery | Local migrated application-schema restore passed. Encrypted hosted prechange archive restored:97 tables/1,007,359 rows,521 constraints,154 RLS records,90 relevant functions and627 normalized effective owner/grant records match. Fresh-snapshot comparison and provider-extension ownership limits are explicit in [operations](OPERATIONS.md). |
+| Hosted private Auth | Actual settings: global signup disabled, email provider enabled, confirmations enabled. Nonexistent-account login reaches normal `invalid_credentials`, not a disabled provider. No public email delivery claim. |
+| Dependency boundary | `npm audit --omit=dev --json`:0 vulnerabilities. Five high audit entries share the development-only ESLint→glob→micromatch→braces chain: [CVE-2026-93687](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), no patched braces version at inspection. Rejected the suggested incompatible ESLint-config downgrade; track a compatible upstream fix. |
+
+## Historical original acceptance and initial hosted release
+
+Original upstream `0d31989d65933b6491bbfa5eb178e5a55c904f85`; original verified application [`b0dfe26`](https://github.com/fabianxvogt/Supper-Board/commit/b0dfe26b585db9f02e9a3e2dd16fbb903c8d0220). The following entries retain their original execution context/counts rather than imply every check was rerun for each private-pilot edit.
 
 | Check | Result | Evidence |
 |---|---|---|
@@ -171,4 +194,4 @@ Each of the58 required cases is listed separately. “Pending” is not a pass. 
 
 Mandatory M0–M8 local V1 acceptance is complete:all58 cases passed. Independent exact Luna6.0 repair reviews are clear. Classification:INCREMENTAL / EMPIRICAL software verification, not formal scientific or clinical validation.
 
-External deployment and the hosted core/privacy smoke are observed above. **Public confirmation/password-recovery email delivery is not claimed:** the owner selected verified custom SMTP, but no approved sender configuration is available yet; built-in Supabase SMTP is organization-only and confirmations remain on. Controller/legal information and ongoing backup/recovery policy remain operator prerequisites. Physical mobile keyboards were not exercised. No real orders or private user data were used. Original demo tests prove only upstream UI behavior, not the new application's persistence or security.
+The owner selected a **private pilot**, not public signup. Public confirmation/password-recovery delivery is unverified without an approved SMTP sender; confirmations remain enabled and the email sign-in provider remains available. Controller/legal details and recurring/off-device backup retention/recovery ownership are operator prerequisites. A one-time encrypted application restore is not full-provider recovery coverage. Physical mobile keyboards and unassisted household adoption are unexercised. No real orders or private user data were used in synthetic app flows. Original demo tests do not prove new-application persistence/security.

@@ -6,6 +6,7 @@ The original `index.html`, `claude-shim.js`, `seed.js` and screenshots remain th
 
 - [Binding implementation roadmap](IMPLEMENTATION_ROADMAP.md): complete supplied specification, M0–M8 and F/D/U acceptance IDs; E1–E7 are later scope.
 - [Current implementation status](IMPLEMENTATION_STATUS.md): completed, partial and blocked requirements, without inferred test success.
+- [Product roadmap](../ROADMAP.md): owner-selected private pilot, unassisted household-use gate and explicit public-service prerequisites; no automatic AI/price-integration expansion.
 - [Upstream baseline](UPSTREAM_BASELINE.md): true fork, branch, provenance and observed original behavior.
 - [Parallel workstream contract](WORKSTREAM_CONTRACT.md): path ownership and shared interfaces during implementation.
 
@@ -19,6 +20,6 @@ The original `index.html`, `claude-shim.js`, `seed.js` and screenshots remain th
 
 ## Reviewed synthetic visuals
 
-Actual local production Chromium captures, not mockups: [Today, phone](screenshots/today-phone.png), [Plan, desktop](screenshots/plan-desktop.png), [Shopping, tablet](screenshots/shopping-tablet.png), [native keyboard focus, phone](screenshots/keyboard-focus-phone.png). Only these individually inspected synthetic screenshots are selected for the repository; credentials, profile exports, bulk source archives and local acceptance artifacts remain excluded.
+The linked [Today phone](screenshots/today-phone.png), [Plan desktop](screenshots/plan-desktop.png), [Shopping tablet](screenshots/shopping-tablet.png) and [keyboard focus phone](screenshots/keyboard-focus-phone.png) captures are reviewed synthetic evidence from the original acceptance release, not current private-pilot UI screenshots. Current actual browser observations are recorded in [TEST_REPORT](TEST_REPORT.md). Credentials, profile exports, bulk source archives and incidental local artifacts remain outside the public repository.
 
 Classification: INCREMENTAL product engineering; nutritional estimates are planning aids, not diagnoses or medical advice. Independent source review is not clinical approval.

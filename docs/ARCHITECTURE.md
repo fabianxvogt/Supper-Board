@@ -8,9 +8,11 @@ Domain values cross the persistence boundary as decimal strings. PostgreSQL stor
 
 ## Commands and concurrency
 
-User writes call narrowly scoped `public.*` RPCs with a `CommandEnvelope`: UUID `operationId`, the caller's expected aggregate revisions, and a validated payload. `app_private.claim_command` binds an operation ID to the authenticated caller and payload hash; the receipt is completed in the same PostgreSQL transaction as its mutation. Replaying the same operation returns its saved result, while reusing it with a different payload is a conflict. Revision helpers reject missing or stale aggregate revisions rather than treating them as optional.
+User writes call narrowly scoped `public.*` RPCs with a `CommandEnvelope`: UUID `operationId`, expected aggregate revisions and a validated payload. `app_private.claim_command` serializes per-user claims and binds an operation ID to the caller and payload hash; mutation and receipt commit together. Authorized replay returns its saved result; a changed payload conflicts. Revision helpers reject missing/stale revisions. Shopping replay checks current household authority before returning a cached result, including after waiting for the household lock.
 
 A command performs its authorization, revision checks, row locks, data changes, journal records, and result construction within the same database transaction. Household roles are checked in the RPC even when a table is readable through RLS. Functions that need a definer context use an empty `search_path`, qualify objects, and are granted only to the required Supabase roles.
+
+Invitation issuer removal/downgrade permanently sets pending invitations' `revoked_at`; later promotion does not revive a token. Last-owner protection remains. Shared plan-draft controls lock synchronously at submit and stay locked until the committed revision reaches the UI, preventing immediate save→approve from sending an old revision.
 
 ## Row security and private profiles
 
@@ -22,6 +24,8 @@ The owner-only export accepts an optional profile ID and includes that profile's
 
 Imported people are never linked to the destination Auth account implicitly. An exact existing private profile owned by the caller can still be edited/exported/deleted for its unlinked person; this grants no new guest-profile creation or foreign-row access. Authoritative `private_profiles.imported_unverified` persists across edits and marks new energy estimates derived from imported inputs. Target provenance also considers any imported target history, not just a client-supplied base. Client false markers cannot erase it, and the private/shared DTOs retain warnings without exposing frozen inputs through sharing.
 
+Import preview reads require current destination authority and an unexpired preview. Applying a preview atomically clears its raw payload; expiry is physically swept by the service-only purge function and scheduled job. `app_private.private_profile_import_origins` records exact source household/profile identities for imported private rows so owner deletion removes matching pending preview data without guessing identity from body values. See [retention and recovery limits](OPERATIONS.md).
+
 ## Versioned source and target records
 
 `foods` are stable identities; `food_versions` and their nutrient/component/category rows retain the source release and are immutable once published. Nutrient definitions specify a canonical identity, source unit, chemical form where needed, and edible basis. The BLS 4.0 source row is seeded in the core migration so the administrative importer can verify its configured source before importing.
@@ -32,7 +36,9 @@ The EFSA packet is seeded by `20261006000700_reviewed_reference_data.sql`. Its a
 
 ## Planning, inventory, and shopping provenance
 
-Plans, recipe versions, planned batches, entries, and allocations use household-scoped foreign keys. Shopping is a projection rather than a second source of recipe quantities. A saved shopping snapshot captures its quantities, source revisions, amount basis, and causing entry/batch/inventory IDs; ordering creates procurement positions from that immutable snapshot. Receipt confirmation updates both the procurement position and inventory journal in a transaction. A list checkoff is not an inventory receipt: `set_shopping_checkoff` requires the source plan/inventory revisions and the current projected line's lowercase SHA-256 fingerprint. Historical legacy checkoffs may retain a null fingerprint until checked again.
+Plans, recipe versions, batches, entries and allocations use household-scoped foreign keys. The repository exposes `plans[]` and each entry/change's `planId`, not a single arbitrary active plan. Reads retain existing overlapping/adjacent plan history and out-of-window batch allocation totals; writes serialize new overlapping periods rather than hide or merge existing records.
+
+Shopping is a projection, not a second source of recipe quantities. Snapshots preserve quantities, revisions, basis and causing IDs; orders reference the immutable snapshot and confirmed receipt updates the inventory journal atomically. `set_shopping_checkoff` accepts `lines: [{ lineKey, lineFingerprint }]` for an atomic compatible group, with current plan/inventory revisions, one household lock and one resulting revision. Fingerprints are lowercase SHA-256; no legacy single-line payload alias remains. Checkoff is not receipt.
 
 Inventory movements are an append-only journal with a current balance updated in the same transaction. Unit and amount basis are retained through snapshots and procurement; unknown basis is not silently made edible. Numeric database amounts are returned as decimal strings at RPC/export boundaries.
 Unit changes for an existing quantified inventory item are rejected; V1 does not reinterpret or convert its stored balance. Receipt matching merges only a quantitatively confirmed, non-stale balance. An old `unknown` or stale numeric quantity remains separate from the confirmed receipt balance instead of being promoted into a precise sum.
@@ -45,4 +51,4 @@ With a profile ID, export is limited to that owner's associated person and priva
 
 ## Test fixture separation
 
-`tests/db/persistence.test.ts` uses the isolated local Supabase database and transaction-scoped synthetic users/households. Tests require the project loopback database port `55322` and roll back each fixture. `supabase/seed.sql` is a separate opt-in global catalog fixture, explicitly marked synthetic and intentionally not configured for automatic seeding. It must not be applied to production or presented as real food data.
+Database tests reject non-loopback/non-project database URLs. Most fixtures roll back; concurrency/normal-Auth fixtures commit only their own synthetic graph and clean exact IDs afterward. `supabase/seed.sql` is a separate opt-in, explicitly synthetic catalog fixture, intentionally not configured for automatic seeding. Never apply it to production or present it as real composition data.

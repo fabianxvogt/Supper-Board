@@ -2,7 +2,7 @@
 
 A German-language household meal planner built from [Supper Board](https://github.com/weezerhunter/Supper-Board), with versioned food/recipe data, per-person portions and planned nutrition, private optional profiles, inventory and shopping. No body measurements are required to plan meals. Planned nutrition is not recorded consumption or medical advice.
 
-**Live application: [supper-board-nutrition.vercel.app](https://supper-board-nutrition.vercel.app).** Mandatory M0–M8 is implemented; all58 required local acceptance cases passed. Hosted sign-in, body-free household/recipe/plan/shopping persistence and cross-account privacy were also exercised with exact synthetic accounts. **Public signup and password-recovery email delivery await a verified SMTP sender; confirmations remain enabled.** See [implementation status](docs/IMPLEMENTATION_STATUS.md), [binding roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [actual verification report](docs/TEST_REPORT.md). Optional E1–E7 integrations remain Later.
+**Live application: [supper-board-nutrition.vercel.app](https://supper-board-nutrition.vercel.app). Release mode: owner-selected private pilot, not public signup.** Mandatory M0–M8 and the reviewed manual-workflow/trust repairs are implemented. Public registration is closed; existing-account sign-in remains enabled and email confirmations stay on. Verified SMTP, controller/legal information and recurring/off-device recovery ownership are prerequisites for a public service. See [implementation status](docs/IMPLEMENTATION_STATUS.md), [roadmap](ROADMAP.md) and [executed verification](docs/TEST_REPORT.md). Optional E1–E7 integrations remain Later.
 
 ## Local development
 
@@ -32,15 +32,17 @@ npx playwright install chromium
 E2E_SYNTHETIC=1 npm run test:e2e
 ```
 
-The database and running app are required for integration/browser checks. Browser fixtures refuse non-project Supabase hosts and create/delete only their exact synthetic accounts and households. `E2E_SYNTHETIC=1` explicitly enables those workflows; without it, the tests skip and do not prove acceptance. For a nondefault app port, set `PLAYWRIGHT_BASE_URL`, for example `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3183 E2E_SYNTHETIC=1 npm run test:e2e`. The [test report](docs/TEST_REPORT.md) distinguishes actual passes from checks not executed; command definitions alone are not proof.
+The database and running app are required for integration/browser checks. Fixtures refuse non-project Supabase hosts and create/delete only their exact synthetic accounts and households. `E2E_SYNTHETIC=1` is required; missing opt-in, zero tests or skipped tests fail rather than silently proving nothing. CI starts its own application and runs the three required journeys. For a nondefault local port, set `PLAYWRIGHT_BASE_URL`, for example `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3184 E2E_SYNTHETIC=1 npm run test:e2e`. Never reuse an unrelated development server in CI.
 
-Latest observed checks:61 unit tests,18 database tests,3 enabled local production-browser journeys,zero-warning lint,typecheck and optimized builds. The hosted grant repair has failing-before/passing-after coverage and an independent clear review. The full official workbook also validates after the narrow ExcelJS→UUID11.1.1 override; `npm audit --omit=dev` reports0 vulnerabilities. This avoids npm's proposed breaking ExcelJS downgrade.
+Latest executed checks:99 unit tests,49 database tests,3 production-browser journeys,zero-warning lint,TypeScript and optimized builds. Real phone-width flows cover inline ingredient matching, leftovers beyond the original week, grouped shopping and readable saved lists. Two independent final reviews are clear after repairing authorization of cached shopping replays. Production dependency audit reports0 vulnerabilities; five high findings remain in one development-only ESLint/braces chain with no compatible published fix. See the [test report](docs/TEST_REPORT.md) for evidence and limits.
 
 ## Data and operation
 
 BLS4.0 is the primary generic food catalog under CC BY4.0. [Data sources](docs/DATA_SOURCES.md) documents the full import commands, official archive/hash, original markers and attribution. Development fixtures are synthetic, optional and clearly labeled. No missing nutrient is replaced with zero or language-model output. References require original-source verification and independent review before activation; manual targets remain usable without a reference pack.
 
 Recipes and plans bind immutable source versions. Cooking checklist completion is not stock consumption. Ordered items are expected goods, not inventory; only confirmed receipt changes inventory. External merchant/map links neither guarantee availability nor place an order.
+
+Today and Plan put meals first; editing, kitchen tools and raw diagnostics are disclosed when needed. Recipe capture keeps original text and explicit quantity/basis choices. Nutrition shows five headline values, known-part warnings and nutrient-specific weekly inclusion counts without inventing missing values. Shopping combines only compatible known needs; saved text is a timestamped, unsynchronized copy, not a stock receipt.
 
 See the [documentation index](docs/README.md) for architecture, sources, nutrition methods, UX, migrations, operation and verification. Vercel Hobby and an isolated free Supabase project are configured in Frankfurt with the full official catalog and exact HTTPS Auth redirects. [Operations](docs/OPERATIONS.md) records the deployment and remaining email, backup-policy and controller/legal boundaries; deployment alone does not establish public-service readiness.
 

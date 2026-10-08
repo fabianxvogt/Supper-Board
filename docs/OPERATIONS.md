@@ -11,7 +11,7 @@ npm run db:env
 npm run dev
 ```
 
-`npm run db:env` writes the ignored `.env.local` with local Supabase URLs and keys, including the administrative `DATABASE_URL`; it refuses to overwrite an existing file unless explicitly run as `npm run db:env -- --replace-local`. Do not print or commit that file. The browser uses only the publishable key. Service-role and direct PostgreSQL access stay server-side/administrative.
+`npm run db:env` writes ignored `.env.local` with local URLs/keys, administrative `DATABASE_URL`, trusted local origin and `AUTH_ALLOW_SIGNUP=true`; it refuses overwrite without `--replace-local`. Do not print or commit it. A nondefault app port needs its matching `AUTH_TRUSTED_ORIGIN`. Browser access uses only the publishable key; service-role/PostgreSQL credentials remain administrative.
 
 On a new local database, apply the tracked migrations with:
 
@@ -29,7 +29,7 @@ This command destructively resets the local Supabase database and reapplies the 
 node --env-file=.env.local --input-type=module -e "import { spawnSync } from 'node:child_process'; const result = spawnSync('psql', [process.env.DATABASE_URL ?? '', '-v', 'ON_ERROR_STOP=1', '-f', 'supabase/seed.sql'], { stdio: 'inherit' }); if (result.error) throw result.error; process.exit(result.status ?? 1);"
 ```
 
-The database integration tests create synthetic auth users/households in a transaction and roll them back; they do not need this global fixture. Never apply the seed to a production database.
+Database tests use isolated synthetic fixtures, usually rolled back; concurrency and normal-Auth checks commit only their own graph and delete exact IDs afterward. They do not require the global seed. Never apply that seed to production.
 
 ## Importing retained legacy demo data
 
@@ -80,7 +80,7 @@ Do not replace an active release or mapping by direct table edits. Review change
 
 ## Database regression tests
 
-Start the local services and generate `.env.local` first. The `test:db` script loads that file and runs `tests/db/**` against `DATABASE_URL`; the integration suite rejects databases outside the project's loopback port `55322` and uses rollback-only synthetic fixtures:
+Start local services and generate `.env.local` first. `test:db` loads that file and runs `tests/db/**`; it rejects databases outside project loopback port55322. Fixtures are rollback-scoped or explicitly cleaned by exact synthetic IDs:
 
 ```bash
 npm run test:db
@@ -92,28 +92,42 @@ The suite covers approved reference rows and source-kind gates, profile/target p
 
 Before a schema change or release, take and retain a database backup using the hosting provider's supported backup facility or a controlled PostgreSQL `pg_dump`. Store it encrypted, access-restricted, and separately from application source; define retention and deletion under the actual deployment's privacy and legal requirements. A database dump does not by itself back up object-storage files, deployment secrets, or external provider configuration; inventory those separately if the deployment uses them. Never commit a dump or production credentials.
 
-For the local project, `npm run verify:restore` is the reproducible isolated restore check. It requires the generated `.env.local`, refuses database URLs other than loopback port `55322`, creates a temporary database, streams a custom-format `pg_dump`/`pg_restore`, compares public/auth row fingerprints plus public constraints and RLS policies, and drops the temporary database on completion. It writes a restricted temporary archive under `.data/`; retain/delete it according to local policy. This check is a development proof, not a substitute for a provider backup or a tested production recovery plan.
+For the local project, `npm run verify:restore` requires generated `.env.local`, refuses other database endpoints, creates an isolated temporary database and streams custom-format dump/restore. It compares public/auth/app_private row fingerprints, constraints, RLS/policies, effective owners/grants and function definitions, then drops the temporary database. Its restricted archive under `.data/` needs deliberate retention/removal. Application-schema restore does not recreate provider configuration or the `cron` schema/job; verify and re-establish the preview-retention job before serving a restored installation.
 
 For an operator-managed deployment, document the actual backup product, schedule, retention, encryption/access boundary, hosting region, recovery-time/data-loss objectives, and restore owner. Restore into an isolated database first, apply no forward migrations until the restored state is reviewed, and verify login, RLS, export/import, and catalog visibility against synthetic accounts. No production account or recovery credential is supplied by this repository.
 
 ## Deployment and schema changes
 
-Treat migrations as forward-only and additive where possible. Back up first, deploy code that is compatible with the current schema, apply migrations through the deployment's controlled migration runner, then deploy code requiring the new objects. Reference values and published food versions are immutable: correct a source interpretation with a new release or reference-pack version rather than editing historical facts. Do not use `db:reset` for a deployment.
+Use reviewed forward migrations, never `db:reset`. Back up first and preflight required extensions. This private-pilot cutover replaces the shopping command's single-line payload with an atomic `lines[]` contract: stage a ready production build without moving the live alias, apply migrations002–005 through the controlled Supabase runner, then promptly promote that build. Existing tabs must reload; no compatibility alias is retained. Do not run an old application against the new contract or roll back only the app. Published food/reference corrections require new immutable versions, not rewritten history.
 
-The hosted Next application needs only `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and server-only `AUTH_TRUSTED_ORIGIN`. It does not use `SUPABASE_SERVICE_ROLE_KEY` or `DATABASE_URL`; keep those administrative credentials outside Vercel in access-restricted operator storage. `.vercelignore` excludes local environment files, credential/export/archive data and provider metadata from uploads. Production PostgreSQL administration requires `sslmode=verify-full`, not disabled certificate checks.
+The hosted app needs `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and server-only `AUTH_TRUSTED_ORIGIN`. Optional server-only `AUTH_ALLOW_SIGNUP` defaults to false; only exact `true` opens the application gate. It does not use service-role keys or `DATABASE_URL`; keep administrative credentials outside Vercel. `.vercelignore` excludes local environments, credentials, exports, archives and provider metadata. PostgreSQL administration requires `sslmode=verify-full` and the trusted CA, not disabled certificate checks.
 
 Configure production Auth site/redirect URLs for the actual domain before enabling email sign-in. Set `AUTH_TRUSTED_ORIGIN` to that exact HTTPS origin (scheme and host, no path or wildcard); trusted ingress must overwrite `Host`, `X-Forwarded-Host` and `X-Forwarded-Proto` with canonical values. Recovery accepts only a browser `Origin` matching the trusted origin and request host. GoTrue `site_url` must match, with only its exact `/auth/callback` redirect—no wildcard, localhost or caller-supplied redirect.
 
 Keep email confirmations enabled. [Supabase's built-in SMTP](https://supabase.com/docs/guides/auth/auth-smtp) only delivers to organization-member addresses and is limited to two messages/hour; it is not a public production email service. Public registration and password recovery require an operator-configured verified SMTP sender. Review grants, backup coverage, logging retention, regional/privacy terms and the controller's legal information in the actual operating environment; deployment alone does not establish those settings.
 
+For this **private pilot**, hosted Auth uses global `[auth] enable_signup=false`, email provider `[auth.email] enable_signup=true`, and `[auth.email] enable_confirmations=true`. The email-provider switch must stay true to preserve existing-account password sign-in; false disables the provider, not merely registration. The application gate is independently closed. Never push the local development Auth config to production: it intentionally permits synthetic signup and disables local confirmation. Admitting real pilot accounts requires owner-controlled provisioning; admin-confirmed verification actors do not prove email delivery.
+
 Supabase Auth/GoTrue enforces a maximum password size of 72 UTF-8 bytes (`len(password)` in its Go validator); the application applies the same limit before submitting registration, sign-in, or recovery updates. This is a byte limit, not a 72-character limit. See [GoTrue password validation](https://github.com/supabase/auth/blob/master/internal/api/password.go).
 
-## Hosted deployment — observed 2026-10-07
+## Hosted deployment — observed 2026-10-08
 
 - Application: **https://supper-board-nutrition.vercel.app**, Vercel project `supper-board-nutrition` in `fabianxvogts-projects`, Hobby plan, functions in `fra1`. The production build is READY; landing, login, registration and recovery routes return actual Next HTML.
 - Database/Auth: isolated free [Supabase project](https://supabase.com/dashboard/project/yhjiprcszfsalioxmxdj), `eu-central-1`, PostgreSQL17.11. Twelve forward migrations are applied. Only the official BLS4 release was imported:7140 foods/versions,138 components,985320 cells,32 categories; no local seed or private data was copied.
 - Vercel has only the three application variables listed above. Operator credentials and the official Supabase root CA are retained in ignored0600 files outside the deployment bundle. The owned session-pooler connection was verified with `sslmode=verify-full` and authorized TLS; do not replace this with disabled verification.
-- Auth `site_url` and `AUTH_TRUSTED_ORIGIN` are the exact application HTTPS origin; the only redirect is its exact `/auth/callback`. Email confirmation remains on. **Owner-selected public signup is not email-ready until verified custom SMTP is configured and actual confirmation/recovery delivery is exercised.** The synthetic smoke accounts were admin-confirmed solely for verification, not evidence of public email delivery.
+- Auth/trusted origin remain the exact application HTTPS origin with only its exact `/auth/callback`. Observed API settings: signup disabled, email provider enabled, confirmations enabled. A nonexistent-account sign-in returns `invalid_credentials`, not `email_provider_disabled`. Public confirmation/recovery delivery remains unverified; synthetic admin confirmation is not a workaround for admitting public users.
 - [Read-only API grants migration](../supabase/migrations/20261007000100_read_only_api_grants.sql) removes all direct `anon`/`authenticated` table writes and anonymous private-table reads, while retaining explicit public catalog reads and authenticated SELECT/RLS. It also removes PostgreSQL-owned future-table defaults; platform-owned `supabase_admin` defaults are outside this migration role's authority.57/57 public tables retain RLS. Real anonymous import-lineage GET/POST fail with42501; authenticated application mutations continue through authorized commands.
-- Actual hosted smoke exercised normal sign-in, body-free household creation, immutable recipe save,4 cooked/1 allocated/3 remaining portions, shopping extra/snapshot and reload. Foreign JWT profile edits/exports fail FORBIDDEN and private reads return no rows; shared export excludes private body data. Exact synthetic household/profile graphs and Auth actors were removed, with7140 public catalog foods preserved.
+- Initial hosted smoke exercised normal sign-in, body-free household creation, immutable recipe save,4 cooked/1 allocated/3 remaining portions, shopping extra/snapshot and reload. Foreign JWT edits/exports were denied and private reads empty. Current private-pilot release evidence is recorded separately in [TEST_REPORT](TEST_REPORT.md).
 - Controller/legal information, periodic backup scheduling/retention/recovery ownership and public email delivery are not established merely by deploying. Do not claim them from the local acceptance suite or this one-time hosted smoke.
+
+## Private preview retention
+
+Migration `20261007000200_trust_lifecycle.sql` clears consumed raw previews, deletes existing expired previews and installs service-only `purge_expired_import_previews()`. The active `supper-board-preview-retention` pg_cron job runs every five minutes; verify actual successful runs, not only its definition. Expired previews immediately lose ordinary read/apply access, then the sweep physically removes them. Consumption clears payload in the apply transaction. Owner profile deletion clears matching owned pending previews using native or recorded source UUID identities.
+
+Older remapped imports without source-UUID provenance cannot safely be matched by equal body values. Consumed historical payloads are scrubbed and expired ones swept; no invented identity matching is performed. Deletion in the live application cannot erase already exported files or historical encrypted backups. Backup retention/deletion is a separate operator responsibility.
+
+## Executed recovery boundary
+
+The protected prechange hosted dump was encrypted with AES256/PBKDF2, stored0600 outside Git/Vercel and keyed through macOS Keychain. An isolated restore matched97 table fingerprints/counts (1,007,359 rows),521 constraints,154 RLS records,90 application/auth/private function records and627 normalized effective owner/grant records. The comparison used a fresh read-only source snapshot after the original export snapshot expired; it is not a same-snapshot assertion. Temporary restored data/plaintext credentials were removed.
+
+Provider-extension ownership differs in the isolated target (`pg_stat_statements`, `pgcrypto`, `uuid-ossp`); this is application-data/privilege recovery evidence, not full Supabase-provider equivalence. The encrypted archive is retained locally. Recurring/off-device coverage, retention, recovery objectives and named ownership still require an operator decision.

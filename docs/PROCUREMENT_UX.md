@@ -14,7 +14,11 @@ Die Bestandsmaske hält Werte und Ausgangsrevision gemeinsam. Ein unberührter E
 
 Die Einkaufsliste ist eine aktuelle, haushaltsweite Projektion aus geplantem Bedarf, bestätigtem Vorrat und offenen Beschaffungen. Unklare Mengen bleiben Prüfpunkte. Freie Extras sind getrennte Einträge und werden nicht automatisch mit ähnlich benannten Lebensmitteln zusammengelegt; ihre eingegebene Einheit wird unverändert angezeigt. Listeneinträge können abgehakt und wieder geöffnet werden.
 
+Bekannte Gramm-Bedarfe werden erst nach der einmaligen Vorratszuordnung zusammengefasst: nur dieselbe Lebensmittelversion, derselbe Kompatibilitätsschlüssel und dieselbe Mengenbasis. Unbekannte Mengen, Prüfpunkte und Extras bleiben getrennt. Abhaken einer Gruppe ist ein atomarer Befehl für ihre Einzelzeilen; auch die Wiederholung eines bereits gespeicherten Befehls verlangt die aktuelle Haushaltsberechtigung.
+
 Ein Snapshot friert die offenen Mengen samt Quellen und Revisionen ein. Abgehakte Zeilen werden nicht in einen neuen Snapshot übernommen. Ein Snapshot kann als JSON heruntergeladen und separat als extern bestellt markiert werden. Diese Markierung übermittelt keine Bestellung an Händler und bucht keinen Vorrat.
+
+**Einkaufsliste als Text speichern** ist dagegen eine lesbare, nicht synchronisierte Kopie der offenen Liste: Haushalt, Zeitraum, Erstellungszeit, Mengenbasis und unbekannte Mengen bleiben sichtbar. Abgehakte Zeilen fehlen in der Kopie. Essbare Menge und Abtropfgewicht sind nicht automatisch Einkaufsgewicht; Packungsgrößen werden nicht erfunden.
 
 Offene Bestellpositionen trennen erwartete, tatsächlich erhaltene und stornierte Mengen. Ein tatsächlicher Teileingang wird in der Bestelleinheit gebucht und bleibt im Wareneingangsjournal sichtbar; nicht gelieferte Restmengen bleiben offen, bis sie erhalten oder ausdrücklich storniert werden. Eine fehlende bestätigte Einheitenumrechnung wird nicht stillschweigend ergänzt. Es gibt keine angebundenen Preis-, Verfügbarkeits- oder Händlerbestell-Feeds. Märkte werden über eine manuelle Kartensuche gefunden; gespeicherte Händlerlinks und Marktpräferenzen stammen aus der Eingabe des Haushalts.
 
@@ -24,7 +28,11 @@ Haushaltsrollen steuern gemeinsame Änderungen: Viewer lesen, Besitzer und Edito
 
 Eine Einladung erzeugt einen geheimen, einmaligen Link mit Ablaufzeit. Es wird keine Einladungs-E-Mail gesendet. Die eingeladene Person meldet sich an und bestätigt ausdrücklich, mit welcher Haushaltsperson das Konto verknüpft wird; Namen allein führen nie zu einer automatischen Verknüpfung. Der Link ist wie ein Zugangsschlüssel zu behandeln.
 
+Wird die ausstellende Person entfernt oder entsprechend herabgestuft, bleiben ihre offenen Einladungen dauerhaft widerrufen. Eine spätere Beförderung belebt den Link nicht wieder.
+
 Der JSON-Export unterscheidet zwischen dem eigenen privaten Profil und berechtigten gemeinsamen Haushaltsdaten. Ein Import beginnt mit einer serverseitigen Vorschau und einem Konfliktbericht; erst ein eigener Bestätigungsschritt wendet sie an. Konten, Rollen, Mitgliedschaften und Einladungen können nicht aus einem JSON-Dokument importiert werden. Das Löschen des eigenen privaten Profils ist von der Löschung gemeinsamer Haushaltsdaten getrennt.
+
+Verbrauchte Importvorschauen verlieren ihren Rohinhalt im selben Vorgang. Abgelaufene Vorschauen sind nicht mehr zugänglich und werden alle fünf Minuten physisch bereinigt. Die private Profillöschung berücksichtigt exakt gespeicherte Ursprungsidentitäten; keine Zuordnung anhand ähnlicher Körperwerte. Grenzen älterer Importe und historischer Sicherungen: [Betrieb](OPERATIONS.md).
 
 ## Browser-Abnahmelauf
 
