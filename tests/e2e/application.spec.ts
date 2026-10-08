@@ -16,7 +16,7 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await page.getByLabel('Bestätigtes Alter (optional)', { exact: true }).fill('30');
   await page.getByLabel('Bezugsdatum für dieses Alter').fill(today);
   await page.getByText('Gewicht, Größe und Alltag für eine Energieschätzung ergänzen (optional)', { exact: true }).click();
-  await page.getByLabel('Gewicht (kg)').fill('70');
+  await page.getByLabel('Gewicht (kg, optional)', { exact: true }).fill('70');
   await page.getByLabel('Messdatum des Gewichts').fill(today);
   await Promise.all([
     page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/profile'),
@@ -36,8 +36,10 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await page.locator('input[name="target.1.pointValue"]').fill('80');
   await manualTargetForm.locator('fieldset').nth(1).getByLabel('Dieses Grammziel manuell sperren').check();
   await page.getByRole('button', { name: 'Zielversion speichern' }).click();
+  await page.getByText('Gespeicherte Zielversionen ansehen', { exact: true }).click();
   await expect(page.getByText(/Ballaststoffe: 25 g/)).toBeVisible();
   await expect(page.getByText(/Protein: 80 g/)).toBeVisible();
+  await page.getByText('Freigegebene Referenzwerte prüfen und bewusst übernehmen', { exact: true }).click();
   const proteinAdoption = page.locator('form:has(input[name="referenceId"][value="efsa_q27_protein_pri"])');
   await proteinAdoption.getByRole('button', { name: 'Vorschau der Zieländerung anzeigen' }).click();
   await expect(proteinAdoption.getByRole('region', { name: 'Vorschau der Zielübernahme' })).toBeVisible();
@@ -82,7 +84,7 @@ test('synthetic owner adopts a reviewed target, creates and plans a recipe, uses
   await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]+$/);
   await expect(page.getByRole('heading', { name: recipeTitle })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Diese Mahlzeit planen', exact: true }).click();
+  await page.getByRole('link', { name: 'Diese Mahlzeit planen', exact: true }).first().click();
   const scheduleRecipe = page.locator('#schedule-recipe');
   const recipeVersionId = new URL(page.url()).searchParams.get('recipeVersionId');
   expect(recipeVersionId).toBeTruthy();

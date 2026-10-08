@@ -7,7 +7,8 @@ export function PlanControls({ startDate, horizonDays, personId, persons }: { st
   const previousStart = addLocalDays(startDate, -horizonDays);
   const nextStart = addLocalDays(startDate, horizonDays);
   return (
-    <div className="card card-flat stack">
+    <details className="card card-flat stack">
+      <summary>Zeitraum und Person ändern</summary>
       <div className="split">
         <a className="button button-small" href={`/plan?start=${previousStart}&horizon=${horizonDays}&personId=${encodeURIComponent(personId)}`} aria-label={`Vorheriger Zeitraum ab ${formatLocalDate(previousStart)}`}>← Zurück</a>
         <a className="button button-small" href={`/plan?start=${nextStart}&horizon=${horizonDays}&personId=${encodeURIComponent(personId)}`} aria-label={`Nächster Zeitraum ab ${formatLocalDate(nextStart)}`}>Weiter →</a>
@@ -18,6 +19,6 @@ export function PlanControls({ startDate, horizonDays, personId, persons }: { st
         <label className="field" htmlFor="plan-person">Person<select id="plan-person" name="personId" defaultValue={personId}><option value="">Alle Personen</option>{persons.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>
         <div className="form-actions"><button className="button" type="submit">Ansicht aktualisieren</button></div>
       </form>
-    </div>
+    </details>
   );
 }

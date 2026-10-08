@@ -61,7 +61,7 @@ small, .muted { color: var(--muted); }
 .brand-wordmark small { display: block; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; margin-top: .2rem; }
 .header-spacer { flex: 1; }
 .context-switcher { position: relative; display: block; }
-.context-switcher summary { list-style: none; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.context-switcher summary { display: block; list-style: none; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .context-switcher summary::-webkit-details-marker { display: none; }
 .context-panel { position: absolute; top: calc(100% + .55rem); right: 0; z-index: 11; display: grid; gap: .75rem; width: min(20rem, calc(100vw - 1.5rem)); padding: 1rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface); box-shadow: var(--shadow); }
 .context-panel label { display: grid; align-items: stretch; font-size: .84rem; }
@@ -83,6 +83,7 @@ small, .muted { color: var(--muted); }
 
 main { min-height: 65vh; }
 .page-wrap { max-width: var(--content); padding: clamp(1.1rem, 3vw, 2.25rem) 1.25rem 6rem; margin: 0 auto; }
+#add-meal { scroll-margin-top: 9rem; }
 .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
 .page-heading p { color: var(--muted); margin: 0; }
 .eyebrow { color: var(--primary-strong); text-transform: uppercase; letter-spacing: .11em; font-size: .72rem; font-weight: 700; margin-bottom: .45rem; }
@@ -187,6 +188,7 @@ th { color: var(--muted); font-size: .82rem; }
   .context-switcher { display: block; }
   .app-nav { display: none; }
   .page-wrap { padding: 1.2rem .85rem 6rem; }
+  #add-meal { scroll-margin-top: 5.5rem; }
   .page-heading { align-items: flex-start; flex-direction: column; }
   .plan-day-heading, .meal-entry-heading { align-items: stretch; flex-direction: column; }
   .grid-2, .grid-3, .grid-4, .form-grid { grid-template-columns: minmax(0,1fr); }

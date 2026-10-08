@@ -59,13 +59,18 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <main className="page-wrap">
-      <div className="page-heading"><div><p className="eyebrow">{context.household.name} · Heute</p><h1>{formatLocalDate(date)}</h1><p>Alle Mahlzeiten des lokalen Kalendertags für {selectedPersonName}; Haushalt und persönliche Zuteilung bleiben getrennt.</p></div><div className="stack"><div className="button-row"><Link className="button button-quiet" href={`/today?date=${backDate}${personQuery}`}>← Vorheriger Tag</Link><Link className="button button-quiet" href={`/today?date=${today}${personQuery}`}>Heute</Link><Link className="button button-quiet" href={`/today?date=${nextDate}${personQuery}`}>Nächster Tag →</Link></div><KitchenModeControls /></div></div>
-      <div className="card card-flat"><form className="form-grid" method="get" action="/today">
+      <div className="page-heading"><div><p className="eyebrow">{context.household.name} · Heute</p><h1>{formatLocalDate(date)}</h1><p>Mahlzeiten und nächste Küchenaufgaben für {selectedPersonName}.</p></div></div>
+      <details className="card card-flat stack">
+        <summary>Tag und Ansicht ändern</summary>
+        <div className="button-row"><Link className="button button-quiet" href={`/today?date=${backDate}${personQuery}`}>← Vorheriger Tag</Link><Link className="button button-quiet" href={`/today?date=${today}${personQuery}`}>Heute</Link><Link className="button button-quiet" href={`/today?date=${nextDate}${personQuery}`}>Nächster Tag →</Link></div>
+        <KitchenModeControls />
+        <form className="form-grid" method="get" action="/today">
         <label className="field" htmlFor="today-date">Kalendertag<input id="today-date" name="date" type="date" defaultValue={date} /></label>
         <label className="field" htmlFor="today-person">Persönliche Ansicht<select id="today-person" name="personId" defaultValue={selectedPerson?.id ?? ''}><option value="">Person auswählen</option>{context.persons.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>
         <label className="inline" htmlFor="today-hide-energy"><input id="today-hide-energy" type="checkbox" name="hideEnergy" value="true" defaultChecked={params.hideEnergy === 'true'} />Energie ausblenden</label>
         <div className="form-actions"><button className="button" type="submit">Ansicht aktualisieren</button></div>
-      </form></div>
+        </form>
+      </details>
       <div className="stack section">
         <section className="card stack" aria-labelledby="today-meals-heading"><p className="eyebrow">Mehrere Slots · persönliche Portion</p><h2 id="today-meals-heading">Mahlzeiten am Tag</h2>
           {entriesToday.length ? <div className="stack">{entriesToday.map((entry) => {
@@ -82,7 +87,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
               {entry.kind === 'recipe_batch' && batch?.recipe && <p className="help">Zutaten und Schritte der historischen Rezeptversion findest du in <Link href={`/recipes/${batch.recipe.recipeId}?versionId=${batch.recipe.id}`}>Rezept öffnen</Link>.</p>}
               {entry.kind === 'direct_food' && entryPlan && <CompletionControl householdId={context.household.id} targetId={entry.id} targetKind="direct_food" planId={entryPlan.id} planRevision={entryPlan.revision} targetRevision={entry.revision} completed={entry.provided} operationId={crypto.randomUUID()} action={markDirectFoodProvidedAction} />}
               {entry.kind === 'recipe_batch' && batch && <div><h4>Erinnerungen vor dieser Mahlzeit</h4><ul className="list-reset">{reminders.filter((reminder) => reminder.entryId === entry.id || reminder.batchId === batch.id).map((reminder) => <PrepReminderStatus key={reminder.id} householdId={context.household.id} reminder={reminder} operationId={crypto.randomUUID()} action={savePrepReminderAction} />)}</ul><AddPrepReminder householdId={context.household.id} entryId={entry.id} defaultDate={entry.date} operationId={crypto.randomUUID()} action={savePrepReminderAction} /></div>}
-              {batch?.recipe && <details><summary>Bewertung und Wunsch</summary><MealFeedbackForm householdId={context.household.id} recipeId={batch.recipe.recipeId} recipeVersionId={batch.recipe.id} entryId={entry.id} personId={selectedPerson?.id} feedbackId={entryFeedback?.id} feedbackRevision={entryFeedback?.revision} rating={entryFeedback?.rating} note={entryFeedback?.note} wish={entryFeedback?.wish} operationId={crypto.randomUUID()} action={saveMealFeedbackAction} /></details>}
+              {batch?.recipe && <MealFeedbackForm householdId={context.household.id} recipeId={batch.recipe.recipeId} recipeVersionId={batch.recipe.id} entryId={entry.id} personId={selectedPerson?.id} feedbackId={entryFeedback?.id} feedbackRevision={entryFeedback?.revision} rating={entryFeedback?.rating} note={entryFeedback?.note} wish={entryFeedback?.wish} operationId={crypto.randomUUID()} action={saveMealFeedbackAction} />}
             </article>;
           })}</div> : <div className="empty-state"><p>Für heute ist noch nichts geplant. Ein leerer Tag steht nicht für Fasten oder eine Aufnahme von null.</p><Link className="button" href={`/plan?start=${date}&horizon=7${personQuery}&addMeal=true#add-meal`}>Mahlzeit hinzufügen</Link></div>}
         </section>
