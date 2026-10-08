@@ -51,7 +51,7 @@ export function AllocateMealForm({
   }, {});
   return (
     <details className="card card-flat">
-      <summary className="button button-small">Weitere Portionen aus dieser Charge einplanen</summary>
+      <summary className="button button-small">Restportionen einplanen</summary>
       <form className="stack" action={formAction} onReset={(event) => {
         if (!preserveFormValues.current) return;
         event.preventDefault();

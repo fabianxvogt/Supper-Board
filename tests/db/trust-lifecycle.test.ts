@@ -385,6 +385,25 @@ async function beginContender(client: pg.Client, userId: string): Promise<void> 
 }
 
 describe('Transaction serialization at trust command boundaries', () => {
+  it.each(['remove_member', 'change_member_role'] as const)('rechecks current shopping authority on receipt replay after %s', async (action) => {
+    const target = await household();
+    const editor = await addMember(target, 'editor');
+    await authenticate(editor);
+    const input = envelope({
+      householdId: target.householdId,
+      lines: [{ lineKey: 'synthetic-replay-line', lineFingerprint: 'b'.repeat(64) }],
+      checked: true, sourcePlanRevision: 0, sourceInventoryRevision: 0,
+    }, { [target.householdId]: 0 });
+    await command('set_shopping_checkoff', input);
+    expect((await command('set_shopping_checkoff', input)).replayed).toBe(true);
+    await revoke(target, editor, action);
+    await authenticate(editor);
+    await failure(() => command('set_shopping_checkoff', input), 'FORBIDDEN');
+    await db.query('reset role');
+    expect((await db.query('select checked,revision from public.shopping_checkoffs where household_id=$1', [target.householdId])).rows).toEqual([{ checked: true, revision: 1 }]);
+    expect((await db.query('select shopping_revision from public.households where id=$1', [target.householdId])).rows[0].shopping_revision).toBe(1);
+  });
+
   it('rejects a grouped shopping checkoff whose editor loses access while waiting for the household lock', async () => {
     const target = await household();
     const editor = await addMember(target, 'editor');
