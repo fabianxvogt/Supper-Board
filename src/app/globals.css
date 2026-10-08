@@ -48,6 +48,7 @@ h1 { font-size: clamp(2rem, 5vw, 3.35rem); line-height: 1.04; margin-bottom: .7r
 h2 { font-size: clamp(1.25rem, 2.5vw, 1.75rem); margin-bottom: .7rem; }
 h3 { font-size: 1.05rem; margin-bottom: .45rem; }
 p { line-height: 1.55; }
+code { overflow-wrap: anywhere; }
 small, .muted { color: var(--muted); }
 
 .skip-link { position: fixed; z-index: 20; inset: .75rem auto auto .75rem; transform: translateY(-180%); padding: .8rem 1rem; background: var(--surface); border-radius: .5rem; }
