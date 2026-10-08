@@ -65,19 +65,14 @@ export function DraftEntryReplacementForm({
   const [currentOperationId, setCurrentOperationId] = useState(operationId);
   const [kind, setKind] = useState(entry.kind);
   const [foodVersionId, setFoodVersionId] = useState(entry.foodVersionId ?? '');
-  const preserveFormValues = useRef(false);
   const [state, formAction] = useActionState(async (previousState: PlanDraftActionState, formData: FormData) => {
-    mutation.begin();
     let savedRevision: number | null = null;
     try {
       const result = await action(previousState, formData);
       if (result.savedOperationId && result.savedOperationId === formData.get('operationId')) {
         savedRevision = draftRevision + 1;
-        preserveFormValues.current = false;
         setCurrentOperationId(crypto.randomUUID());
         router.refresh();
-      } else if (result.error) {
-        preserveFormValues.current = true;
       }
       return result;
     } finally {
@@ -87,11 +82,7 @@ export function DraftEntryReplacementForm({
   return (
     <details>
       <summary className="button button-small">Entwurfseintrag ersetzen oder vervollständigen</summary>
-      <form className="stack" action={formAction} onReset={(event) => {
-        if (!preserveFormValues.current) return;
-        event.preventDefault();
-        preserveFormValues.current = false;
-      }}>
+      <form className="stack" action={formAction} onSubmit={mutation.begin} onReset={(event) => event.preventDefault()}>
         <input type="hidden" name="operationId" value={currentOperationId} />
         <input type="hidden" name="householdId" value={householdId} />
         <input type="hidden" name="draftId" value={draftId} />
@@ -139,7 +130,6 @@ export function ApprovePlanDraftForm({
   const [currentOperationId, setCurrentOperationId] = useState(operationId);
   const preserveFormValues = useRef(false);
   const [state, formAction] = useActionState(async (previousState: PlanDraftActionState, formData: FormData) => {
-    mutation.begin();
     let savedRevision: number | null = null;
     try {
       const result = await action(previousState, formData);
@@ -158,7 +148,7 @@ export function ApprovePlanDraftForm({
   }, {});
   const unresolved = draft.entries.some((entry) => entry.kind === 'flex' || (entry.replacementRequired && !entry.replacementResolved));
   return (
-    <form className="stack" action={formAction} onReset={(event) => {
+    <form className="stack" action={formAction} onSubmit={mutation.begin} onReset={(event) => {
       if (!preserveFormValues.current) return;
       event.preventDefault();
       preserveFormValues.current = false;
