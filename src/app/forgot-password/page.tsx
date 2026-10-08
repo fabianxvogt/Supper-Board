@@ -17,7 +17,7 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
 
   return (
     <>
-      <header className="app-header"><div className="header-inner"><Link className="brand" href="/"><span className="brand-mark" aria-hidden="true">S</span><span className="brand-wordmark">Supper Board<small>Nutrition & Küche</small></span></Link><span className="header-spacer" /><Link className="button button-quiet" href="/discover/foods">Ohne Anmeldung entdecken</Link></div></header>
+      <header className="app-header"><div className="header-inner"><Link className="brand" href="/" aria-label="Supper Board Startseite"><span className="brand-mark" aria-hidden="true">S</span><span className="brand-wordmark">Supper Board<small>Nutrition & Küche</small></span></Link><span className="header-spacer" /><Link className="button button-quiet" href="/discover/foods">Ohne Anmeldung entdecken</Link></div></header>
       <main className="page-wrap" style={{ maxWidth: '38rem' }}>
         <p className="eyebrow">Kontozugang</p><h1>Passwort vergessen?</h1>
         <p className="muted">Fordere für die E-Mail-Adresse deines Kontos einen Link zum Festlegen eines neuen Passworts an.</p>

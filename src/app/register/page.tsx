@@ -19,7 +19,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Sea
       : null;
   return (
     <>
-      <header className="app-header"><div className="header-inner"><Link className="brand" href="/"><span className="brand-mark" aria-hidden="true">S</span><span className="brand-wordmark">Supper Board<small>Nutrition & Küche</small></span></Link><span className="header-spacer" /><Link className="button button-quiet" href="/discover/foods">Ohne Anmeldung entdecken</Link></div></header>
+      <header className="app-header"><div className="header-inner"><Link className="brand" href="/" aria-label="Supper Board Startseite"><span className="brand-mark" aria-hidden="true">S</span><span className="brand-wordmark">Supper Board<small>Nutrition & Küche</small></span></Link><span className="header-spacer" /><Link className="button button-quiet" href="/discover/foods">Ohne Anmeldung entdecken</Link></div></header>
       <main className="page-wrap" style={{ maxWidth: '38rem' }}>
         <p className="eyebrow">{signupEnabled ? 'Einrichtung in kleinen Schritten' : 'Gemeinsam im kleinen Kreis testen'}</p>
         <h1>{signupEnabled ? 'Konto erstellen' : 'Privater Pilot'}</h1>
